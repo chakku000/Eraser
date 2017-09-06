@@ -3,54 +3,101 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include <unordered_map>
+#include <set>
 #include <bitset>
 
+using uint8 = uint8_t;
 using int32 = int32_t;
 using uint32 = uint32_t;
 
-namespace Debug{
-    void printBit(uint32 bit){
-        std::cout << static_cast<std::bitset<32>>(bit) << std::endl;
-    }
-};
+using Lock = uint32;
+using Locks = std::set<uint32>;
 
-struct ShadowWord{
+
+/*
+ * relate lockset index(uint32) and Lock set(Lock)
+ * typename T : type of lockset index
+ * typename U : type of lockset
+ */
+template<typename T,typename U>
+struct Map{
     private:
-        uint32 LocksetIndexMask = (1 << 30) - 1; // 下位30bitを取ってくるマスク
-        uint32 TwoBitMask = (1 << 2)  - 1;    // 下位2bitを取ってくるマスク
-
-        uint32 word;    // 下位30bitがロックセットインデックス, 上位2bitが状態
+        std::unordered_map<T,U> index_to_locks;
+        std::map<U,T> locks_to_index;
+        uint32 next_index = 1;
 
     public:
-        ShadowWord(){}
-        ShadowWord(uint32 word_) : word(word_){}
-
-        uint32 getLocksetIndex(){   // ロックセットインデックスの取得
-            return word & LocksetIndexMask;
+        inline bool findlock(Lock lk){
+            return locks_to_index.count(lk);
         }
-
-        uint32 getState(){          // 状態の取得
-            return (word >> 30) & TwoBitMask;
-        }
-
-        void updateIndex(uint32 index){
-            uint32 state = getState();
-            state <<= 30;
-            state |= index;
-            word = state;
-        }
-
-        void updateState(uint32 state){
-            uint32 t = word & (3 << 30);    // 上位2bitのマスク
-            t |= (state << 30);
-            word = t;
+        inline bool findindex(uint32 idx){
+            return index_to_locks.count(idx);
         }
 };
 
-int main(){
-    using namespace Debug;
+/*
+ * shadow word correspond to the memory address
+ */
+struct ShadowWord{
+    uint8 state;
+    uint32 lockset_index;
+    ShadowWord() : state(0) , lockset_index(0){}
+    ShadowWord(uint8 s, uint32 li) : state(s) , lockset_index(li){}
+};
 
-    uint32 t = 0;
-    printBit(t);
-    printBit(3<<30);
+/*
+ *  meory address -> ShadowWord
+ */
+std::map<uint32,ShadowWord> shadows;
+
+/*
+ *  cache of intersection operation
+ */
+struct Cache{
+    private:
+        std::map<uint32,std::map<uint32,uint32>> cache_table;
+
+    public:
+        // is exist intersection of a and b ?
+        bool exist(uint32 a, uint32 b){
+            if(!cache_table.count(a) or !cache_table[a].count(b)) return false;
+            else return true;
+        }
+
+        // insert the result(c) of intersection(a,b)
+        void insert(uint32 a,uint32 b,uint32 c){
+            cache_table[a][b]=c;
+        }
+
+        uint32 get(uint32 a,uint32 b){
+            if(!exist(a,b)) return -1;
+            return cache_table[a][b];
+        }
+};
+
+/*
+ *  intersection operation for Lockset and Candidate set
+ */
+template<typename T>
+std::set<T> intersection(std::set<T>& a,std::set<T>& b){
+    std::set<T> result;
+    std::set_intersection(a.begin(),a.end(),b.begin(),b.end(),std::inserter(result,result.end()));
+    return result;
+}
+
+int main(){
+    // TEST
+    std::vector<uint32> addrs{1,2,3,4,5};   // アドレス
+
+    for(size_t i=0;i<addrs.size();i++){
+        // 各アドレスに対するロック
+        std::vector<Lock> Locks;
+        for(int j=0;j<3;j++) Locks.emplace_back(i*j);
+
+        /*
+         * Locksに対応するLocksetIndexを検索したい
+         */
+
+    }
 }
