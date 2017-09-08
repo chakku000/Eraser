@@ -32,8 +32,7 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
 
     uint32_t thread_id = PIN_ThreadId();
 
-    std::cerr << "pthread_mutex_lock replaced..." << std::endl;
-    std::cerr << "Thread( " << thread_id << " ) try get lock (" <<  mu << ")" << std::endl;
+    std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
 
     // pthread_mutex_lockを実行
     PIN_CallApplicationFunction(
@@ -154,7 +153,6 @@ int main(int argc,char* argv[]){
     PIN_AddFiniFunction(Fini,0);
 
 
-    std::cout << "pass" << std::endl;
     // Start the Program never returns;
     PIN_StartProgram();
     return 0;
