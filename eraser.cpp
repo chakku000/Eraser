@@ -21,7 +21,6 @@ using Locks = bitset<max_lock>;      // ロックの最大個数を128とする
 /*      Data Structure                                                   */
 /* ===================================================================== */
 
-
 /*
  * ロックのアドレスとロック番号を対応付ける構造体
  */
@@ -82,6 +81,7 @@ struct LocksHeld{
 /* ===================================================================== */
 LockManager lockmanager;
 LocksHeld locks_held;
+PIN_LOCK pinlock;
 
 /* ===================================================================== */
 /*      Trace Implement                                                  */
@@ -98,7 +98,6 @@ VOID Trace(TRACE trace, VOID *v){
     }
 }
 */
-
 
 /* ===================================================================== */
 /*      Replacement Routine                                              */
@@ -132,10 +131,10 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
     /* --------------------------
      * locks_held(t) を更新する
      * --------------------------*/
+    PIN_GetLock(&pinlock,thread_id+1);      // スレッドIDはデバッグ用であるが,lockにセットされる値なのでnon-zeroである必要がある
     uint32_t lkid = lockmanager.getLockNumber(mu);  // ロックIDの取得
     locks_held.addLock(thread_id,lkid);
-
-
+    PIN_ReleaseLock(&pinlock);
 
     return ret;
 }
@@ -154,8 +153,10 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
     /* ------------------------------
      * locks_held(t) を更新
      * ------------------------------*/
+    PIN_GetLock(&pinlock,thread_id+1);
     uint32_t lkid = lockmanager.getLockNumber(mu);  // ロックIDの取得
     locks_held.deleteLock(thread_id,lkid);
+    PIN_ReleaseLock(&pinlock);
 
     /* ------------------------------
      *  pthread_mutex_unlock(&mu)を実行
@@ -242,6 +243,8 @@ VOID Fini(INT32 code,VOID *v){}
 /* ===================================================================== */
 
 int main(int argc,char* argv[]){
+    // Initialize the pin Lock
+    PIN_InitLock(&pinlock);
     // Initialie pin
     PIN_InitSymbols();
     PIN_Init(argc,argv);
