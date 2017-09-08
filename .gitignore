@@ -1,3 +1,6 @@
 *.swp
 *.out
 obj-intel64
+input/ex0
+input/ex1
+input/ex2
