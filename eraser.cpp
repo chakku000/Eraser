@@ -1,9 +1,91 @@
+#include <cstdio>
 #include <iostream>
 #include <fstream>
 #include <cstdint>
 #include <pthread.h>
-#include <cstdio>
+#include <map>
+#include <bitset>
 #include "pin.H"
+
+/* ===================================================================== */
+/*      Const Value                                                      */
+/* ===================================================================== */
+constexpr uint32_t max_lock = 128;
+
+/* ===================================================================== */
+/*      Type Alias                                                       */
+/* ===================================================================== */
+using Locks = bitset<max_lock>;      // ロックの最大個数を128とする
+
+/* ===================================================================== */
+/*      Data Structure                                                   */
+/* ===================================================================== */
+
+
+/*
+ * ロックのアドレスとロック番号を対応付ける構造体
+ */
+struct LockManager{
+    private:
+        uint32_t index=1;   // 次のロックに割り振る値
+        std::map<uint32_t,uint32_t> addressToIndex;  // ロックのアドレス -> ロックのインデックス のテーブル
+
+    public:
+        /*
+         * ロックのアドレスを与えて,そのロックの番号を返す
+         */
+        uint32_t getLockNumber(uint32_t addr){
+            if(addressToIndex.count(addr)) return addressToIndex[addr];
+            else return addressToIndex[addr] = index++;
+        }
+};
+
+
+/*
+ * 各スレッドの持つロックを管理
+ */
+struct LocksHeld{
+    private:
+        std::map<uint32_t,Locks> locks_held;
+    public:
+        /*
+         * スレッドIDがthread_idのスレッドのlocks_held(thread_id)を返す
+         */
+        Locks getLocks(uint32_t thread_id){
+            return locks_held[thread_id];
+        }
+
+        /*
+         * arg0 thread_id : スレッドid
+         * arg1 lkid      : ロックID
+         * thread_idのスレッドのlocks_held(thread_id)にロックlkidを追加
+         */
+        void addLock(const uint32_t thread_id ,const uint32_t lkid){
+            Locks lk = locks_held.count(thread_id) ? locks_held[thread_id] : 0;
+            lk |= (1 << lkid);
+            locks_held[thread_id] = lk;
+        }
+
+        /*
+         * arg0 thread_id : スレッドid
+         * arg1 lkid      : ロックID
+         * thread_idのスレッドのlocks_held(thread_id)からロックlkidを除去
+         */
+        void deleteLock(const uint32_t thread_id , const uint32_t lkid){
+            Locks mask = ~(1 << lkid);
+            locks_held[thread_id] &= mask;
+        }
+};
+
+/* ===================================================================== */
+/*      Grobal Variable                                                  */
+/* ===================================================================== */
+LockManager lockmanager;
+LocksHeld locks_held;
+
+/* ===================================================================== */
+/*      Trace Implement                                                  */
+/* ===================================================================== */
 
 /*
 VOID Trace(TRACE trace, VOID *v){
@@ -18,11 +100,10 @@ VOID Trace(TRACE trace, VOID *v){
 */
 
 
-
 /* ===================================================================== */
 /*      Replacement Routine                                              */
 /* ===================================================================== */
-
+/*{{{*/
 /*
  * pthread_mutex_lockを置換してpthread_mutex_lockを行ったあとに
  * 実行スレッドの保持するlocks_held()に対象のロックを追加する
@@ -34,7 +115,10 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
 
     std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
 
-    // pthread_mutex_lockを実行
+
+    /* ------------------------------
+     *  pthread_mutex_lock(&mu)を実行
+     * ------------------------------ */
     PIN_CallApplicationFunction(
             context , PIN_ThreadId(),
             CALLINGSTD_DEFAULT,
@@ -43,6 +127,16 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
             PIN_PARG(int), &ret,
             PIN_PARG(pthread_mutex_t*), mu,
             PIN_PARG_END());
+
+
+    /* --------------------------
+     * locks_held(t) を更新する
+     * --------------------------*/
+    uint32_t lkid = lockmanager.getLockNumber(mu);  // ロックIDの取得
+    locks_held.addLock(thread_id,lkid);
+
+
+
     return ret;
 }
 
@@ -57,7 +151,15 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
 
     std::cerr << "pthread_mutex_unlock replaced. Thread(" << thread_id << ") unlock (" << mu << ")" << std::endl;
 
-    // pthread_mutex_unlockを実行
+    /* ------------------------------
+     * locks_held(t) を更新
+     * ------------------------------*/
+    uint32_t lkid = lockmanager.getLockNumber(mu);  // ロックIDの取得
+    locks_held.deleteLock(thread_id,lkid);
+
+    /* ------------------------------
+     *  pthread_mutex_unlock(&mu)を実行
+     * ------------------------------ */
     PIN_CallApplicationFunction(
             context , thread_id,
             CALLINGSTD_DEFAULT,
@@ -69,13 +171,13 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
     return ret;
 }
 
-
+/*}}}*/
 
 /* ===================================================================== */
 /* プログラム実行前にimageを検査して,ロックの解放,獲得の関数を置き換える */
 /* ===================================================================== */
 
-
+/*{{{*/
 /*
  *  pthread_mutex_lock() 関数を置き換える
  */
@@ -133,6 +235,7 @@ VOID ImageLoad(IMG img,VOID *v){
 
 
 VOID Fini(INT32 code,VOID *v){}
+/*}}}*/
 
 /* ===================================================================== */
 /* Print Help Message                                                    */
