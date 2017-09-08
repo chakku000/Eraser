@@ -18,7 +18,7 @@ void count_with_lock(){
 }
 
 int main(){
-    puts("========== User Program Start ==========");
+    puts("\n========== User Program Start ==========");
     pthread_t thread1;
 
     pthread_create(&thread1,NULL,(void*)count_with_lock,NULL);
@@ -34,6 +34,6 @@ int main(){
 
     pthread_mutex_destroy(&mu1);
     pthread_mutex_destroy(&mu2);
-    puts("========== Done ==========");
+    puts("========== Done ==========\n");
     return 0;
 }
