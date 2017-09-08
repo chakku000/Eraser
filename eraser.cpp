@@ -44,7 +44,29 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
             PIN_PARG(int), &ret,
             PIN_PARG(pthread_mutex_t*), mu,
             PIN_PARG_END());
+    return ret;
+}
 
+/*
+ * pthread_mutex_unlockを置換してpthread_mutex_unlockのコール時に
+ * 実行スレッドの保持するlocks_held()から対象のロックを削除する
+ */
+int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex_t* mu){
+    int ret = 0;
+
+    uint32_t thread_id = PIN_ThreadId();
+
+    std::cerr << "pthread_mutex_unlock replaced. Thread(" << thread_id << ") unlock (" << mu << ")" << std::endl;
+
+    // pthread_mutex_unlockを実行
+    PIN_CallApplicationFunction(
+            context , thread_id,
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            NULL,
+            PIN_PARG(int),&ret,
+            PIN_PARG(pthread_mutex_t*),mu,
+            PIN_PARG_END());
     return ret;
 }
 
@@ -64,10 +86,10 @@ VOID ImageLoad(IMG img,VOID *v){
     // Define a function prototype that describes the application routine that will be replaced
     {
         PROTO proto_pthread_mutex_lock = PROTO_Allocate(PIN_PARG(int),    // 返り値の型
-                CALLINGSTD_DEFAULT, // 推奨値のまま
-                "pthread_mutex_lock",   // 関数名
-                PIN_PARG(pthread_mutex_t*),  // 引数の型
-                PIN_PARG_END());
+                                                        CALLINGSTD_DEFAULT, // 推奨値のまま
+                                                        "pthread_mutex_lock",   // 関数名
+                                                        PIN_PARG(pthread_mutex_t*),  // 引数の型
+                                                        PIN_PARG_END());
 
         // See if pthread_mutex_lock() is present in the image
         RTN rtn = RTN_FindByName(img,"pthread_mutex_lock");
@@ -87,6 +109,26 @@ VOID ImageLoad(IMG img,VOID *v){
 
     // replace pthread_mutex_unlock
     {
+        PROTO proto_pthread_mutex_unlock = PROTO_Allocate(PIN_PARG(int),    // 戻り値の型情報
+                                                          CALLINGSTD_DEFAULT, // 推奨値
+                                                          "pthread_mutex_unlock",   // 置換対象の関数名
+                                                          PIN_PARG(pthread_mutex_t*),   // 引数の型情報
+                                                          PIN_PARG_END());
+
+        // See if pthread_mutex_unlock() is present in the image
+        RTN rtn = RTN_FindByName(img,"pthread_mutex_unlock");
+
+        // replace pthread_mutex_unlock
+        if(RTN_Valid(rtn)){
+            RTN_ReplaceSignature(
+                    rtn,AFUNPTR(Jit_PthreadMutexUnlock),
+                    IARG_PROTOTYPE, proto_pthread_mutex_unlock,
+                    IARG_CONTEXT,
+                    IARG_ORIG_FUNCPTR,
+                    IARG_FUNCARG_ENTRYPOINT_VALUE,
+                    0,
+                    IARG_END);
+        }
     }
 }
 
