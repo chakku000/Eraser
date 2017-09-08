@@ -59,29 +59,35 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
  *  pthread_mutex_lock() 関数を置き換える
  */
 VOID ImageLoad(IMG img,VOID *v){
+
     // replace pthread_mutex_lock
     // Define a function prototype that describes the application routine that will be replaced
-    PROTO proto_pthread_mutex_lock = PROTO_Allocate(PIN_PARG(int),    // 返り値の型
-            CALLINGSTD_DEFAULT, // 推奨値のまま
-            "pthread_mutex_lock",   // 関数名
-            PIN_PARG(pthread_mutex_t*),  // 引数の型
-            PIN_PARG_END());
+    {
+        PROTO proto_pthread_mutex_lock = PROTO_Allocate(PIN_PARG(int),    // 返り値の型
+                CALLINGSTD_DEFAULT, // 推奨値のまま
+                "pthread_mutex_lock",   // 関数名
+                PIN_PARG(pthread_mutex_t*),  // 引数の型
+                PIN_PARG_END());
 
-    // See if pthread_mutex_lock() is present in the image
-    RTN rtn = RTN_FindByName(img,"pthread_mutex_lock");
-    if(RTN_Valid(rtn)){
-        // replace pthread_mutex_lock
-        // 参考に ToolUnitTest/replace_malloc_init.cpp
-        RTN_ReplaceSignature(
-                rtn,AFUNPTR(Jit_PthreadMutexLock),  // 置換ルーチンと置換された結果の関数ポインタ
-                IARG_PROTOTYPE, proto_pthread_mutex_lock,   // 置換対象の情報
-                IARG_CONTEXT,
-                IARG_ORIG_FUNCPTR,
-                IARG_FUNCARG_ENTRYPOINT_VALUE,  // pthred_mutex_lockに対する引数を渡すという宣言
-                0,                              // 0番目の引数を渡す
-                IARG_END);
+        // See if pthread_mutex_lock() is present in the image
+        RTN rtn = RTN_FindByName(img,"pthread_mutex_lock");
+        if(RTN_Valid(rtn)){
+            // replace pthread_mutex_lock
+            // 参考に ToolUnitTest/replace_malloc_init.cpp
+            RTN_ReplaceSignature(
+                    rtn,AFUNPTR(Jit_PthreadMutexLock),  // 置換ルーチンと置換された結果の関数ポインタ
+                    IARG_PROTOTYPE, proto_pthread_mutex_lock,   // 置換対象の情報
+                    IARG_CONTEXT,
+                    IARG_ORIG_FUNCPTR,
+                    IARG_FUNCARG_ENTRYPOINT_VALUE,  // pthred_mutex_lockに対する引数を渡すという宣言
+                    0,                              // 0番目の引数を渡す
+                    IARG_END);
+        }
     }
-    //std::cout << "ImageLoad called" << std::endl;
+
+    // replace pthread_mutex_unlock
+    {
+    }
 }
 
 
