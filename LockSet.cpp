@@ -2,9 +2,10 @@
 #include <bitset>
 #include <map>
 #include <cstdint>
+#include <string>
 
 
-constexpr uint32_t max_lock = 128;
+constexpr uint32_t max_lock = 10;
 using Locks = std::bitset<max_lock>;      // ロックの最大個数を128とする
 
 
@@ -83,9 +84,11 @@ struct ShadowWord{
         void read_access(uint32_t thread_id , Locks locksheld){
             if(state == Virgin){
                 state = Exclusive;
+                th = thread_id;
             }else if(state == Exclusive){
                 if(th != thread_id){
                     state = Shared;
+                    lockset &= locksheld;
                 }
             }else if(state == Shared){
                 lockset &= locksheld;
@@ -101,9 +104,11 @@ struct ShadowWord{
         void write_access(uint32_t thread_id,Locks locksheld){
             if(state == Virgin){
                 state = Exclusive;
+                th = thread_id;
             }else if(state == Exclusive){
                 if(th != thread_id){
                     state = SharedModified;
+                    lockset &= locksheld;
                 }
             }else if(state == Shared){
                 state = SharedModified;
@@ -116,11 +121,76 @@ struct ShadowWord{
                 }
             }
         }
+
+        void print(){
+            std::string s;
+            if(state == Virgin) s = "Virgin";
+            else if(state == Exclusive) s = "Exclusive";
+            else if(state == Shared) s = "Shared";
+            else if(state == SharedModified) s = "SharedModified";
+
+            std::cout << "state = " << s << std::endl;
+            std::cout << "C(v) = " << lockset << std::endl;
+            if(state == Exclusive) std::cout << "thread = " << th << std::endl;
+
+            std::cout << std::endl;
+        }
 };
 
 LockManager<pthread_mutex_t*,uint32_t> lockmanager;
 LocksHeld locks_held;
+std::map<uint32_t,ShadowWord> candidateLockset;
 
 int main(){
 
+    Locks lock1,lock2,lock3;
+    for(int i=0;i<7;i++) if(i%2==0) lock1 |= (1<<i);
+    std::cout << "thread1 = "<< lock1 << std::endl;
+
+    for(int i=1;i<=5;i++) lock2 |= (1<<i);
+    std::cout << "thread2 = " << lock2 << std::endl;
+
+    std::cout << std::endl;
+
+    std::cout << "thread1 read" << std::endl;
+    candidateLockset[1].read_access(1,lock1);
+    candidateLockset[1].print();
+
+
+    std::cout << "thread1にlock8を追加" << std::endl;
+    lock1 |= (1<<8);
+
+    std::cout << "thread1 = "<< lock1 << std::endl;
+
+    std::cout << "thread1 read" << std::endl;
+    candidateLockset[1].read_access(1,lock1);
+    candidateLockset[1].print();
+
+    std::cout << "thread1 write" << std::endl;
+    candidateLockset[1].write_access(1,lock1);
+    candidateLockset[1].print();
+
+    std::cout << "thread2 read" << std::endl;
+    candidateLockset[1].read_access(2,lock2);
+    candidateLockset[1].print();
+
+    std::cout << "thread1 read" << std::endl;
+    candidateLockset[1].read_access(1,lock1);
+    candidateLockset[1].print();
+
+    std::cout << "thread2 からロック2を除去" << std::endl;
+    lock2 &= ~(1<<2);
+    std::cout << "lock2 = " << lock2 << std::endl;
+
+    std::cout << "thread2 write" << std::endl;
+    candidateLockset[1].write_access(2,lock2);
+    candidateLockset[1].print();
+
+
+    std::cout << "thread3 はロック1だけをもつ" << std::endl;
+    lock3 = (1<<1);
+    
+    std::cout << "thread3がwrite access" << std::endl;
+    candidateLockset[1].write_access(3,lock3);
+    candidateLockset[1].print();
 }
