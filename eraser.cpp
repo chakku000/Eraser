@@ -25,7 +25,7 @@ using Locks = bitset<max_lock>;      // ロックの最大個数を128とする
  * ロックのアドレスとロック番号を対応付ける構造体
  * ------------------------------------------------------------*/
 template<typename Key,typename Val>
-struct LockManager{
+struct LockManager{/*{{{*/
     private:
         uint32_t index=1;   // 次のロックに割り振る値
         std::map<Key,Val> addressToIndex;  // ロックのアドレス -> ロックのインデックス のテーブル
@@ -38,13 +38,13 @@ struct LockManager{
             if(addressToIndex.count(addr)) return addressToIndex[addr];
             else return addressToIndex[addr] = index++;
         }
-};
+};/*}}}*/
 
 
 /* ------------------------------------------------------------*
  * 各スレッドの持つロックを管理
  * ------------------------------------------------------------*/
-struct LocksHeld{
+struct LocksHeld{/*{{{*/
     private:
         std::map<uint32_t,Locks> locks_held;
     public:
@@ -75,7 +75,7 @@ struct LocksHeld{
             Locks mask = ~(1 << lkid);
             locks_held[thread_id] &= mask;
         }
-};
+};/*}}}*/
 
 /* ===================================================================== */
 /*      Grobal Variable                                                  */
@@ -84,21 +84,51 @@ LockManager<pthread_mutex_t*,uint32_t> lockmanager;
 LocksHeld locks_held;
 PIN_LOCK pinlock;
 
+
+/* ===================================================================== */
+/*      Analysis Read and Write access                                   */
+/* ===================================================================== */
+
+// ip : instructionのアドレス
+// addr  : readするアドレス
+VOID ReadMemAnalysis(VOID * ip, VOID * addr){
+    std::cout << "Mem Read\t:\t" << (uint64_t)addr << std::endl;
+}
+
+// ip : instructionのアドレス
+// addr : writeのアドレス
+VOID WriteMemAnalysis(VOID * ip, VOID * addr){
+    std::cout << "Mem Write\t:\t" << (uint64_t)addr << std::endl;
+}
+
 /* ===================================================================== */
 /*      Trace Implement                                                  */
 /* ===================================================================== */
 
-/*
 VOID Trace(TRACE trace, VOID *v){
     for(BBL bbl = TRACE_BblHead(trace);BBL_Valid(bbl); bbl = BBL_Next(bbl)){
         for(INS ins = BBL_InsHead(bbl);INS_Valid(ins);ins=INS_Next(ins)){
-             * AFUNPTR functionに与える引数
-             * arg0 : IARG_THREAD_ID(スレッドID)
-            INS_InsertCall(ins,IPOINT_BEFORE,(AFUNPTR),IARG_THREAD_ID,IARG_END);
+
+            UINT32 memOperands = INS_MemoryOperandCount(ins);
+            for(UINT32 memOp=0;memOp<memOperands;memOp++){
+                if(INS_MemoryOperandIsRead(ins,memOp)){         // Read Access
+                    INS_InsertPredicatedCall(
+                            ins,IPOINT_BEFORE, (AFUNPTR) ReadMemAnalysis,
+                            IARG_INST_PTR,                      // 計装されるinstructionのアドレス
+                            IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
+                            IARG_END);
+                }
+                if(INS_MemoryOperandIsWritten(ins,memOp)){      // Write access
+                    INS_InsertPredicatedCall(
+                            ins,IPOINT_BEFORE, (AFUNPTR) WriteMemAnalysis,
+                            IARG_INST_PTR,                      // 計装されるinstructionのアドレス
+                            IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
+                            IARG_END);
+                }
+            }
         }
     }
 }
-*/
 
 /* ===================================================================== */
 /*      Replacement Routine                                              */
@@ -254,7 +284,7 @@ int main(int argc,char* argv[]){
     IMG_AddInstrumentFunction(ImageLoad,0);
 
     // Register Instruction to be called to instrument instruction
-    //TRACE_AddInstrumentFunction(Trace,0);
+    TRACE_AddInstrumentFunction(Trace,0);
 
     // Register Fini to be called when the application exist
     PIN_AddFiniFunction(Fini,0);
