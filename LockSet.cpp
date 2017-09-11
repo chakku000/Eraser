@@ -8,7 +8,6 @@
 constexpr uint32_t max_lock = 10;
 using Locks = std::bitset<max_lock>;      // ロックの最大個数を128とする
 
-
 template<typename Key,typename Val>
 struct LockManager{
     private:
@@ -71,16 +70,23 @@ struct ShadowWord{
         uint32_t th;
         State state;
     public:
+        /*------------------------------------------------------------------------------*/
+        /* Constructor                                                                  */
+        /* 初期状態をExclusiveにすることで事前にアドレスを保持する必要をなくす          */
+        /*------------------------------------------------------------------------------*/
         ShadowWord(){
-            state = Virgin;
+            state = Exclusive;
             lockset.set();
         }
         ShadowWord(uint32_t thread_id){
             th = thread_id;
-            state = Virgin;
+            state = Exclusive;
             lockset.set();
         }
 
+        /* -----------------------------------*/
+        /* Update state and candidate lockset */
+        /* -----------------------------------*/
         void read_access(uint32_t thread_id , Locks locksheld){
             if(state == Virgin){
                 state = Exclusive;
