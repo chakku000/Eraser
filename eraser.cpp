@@ -90,7 +90,6 @@ PIN_LOCK pinlock;
 /*      Analysis Read and Write access                                   */
 /* ===================================================================== */
 
-
 // ip : instructionのアドレス
 // addr  : readするアドレス
 VOID ReadMemAnalysis(VOID * ip, VOID * addr){
@@ -104,6 +103,7 @@ VOID WriteMemAnalysis(VOID * ip, VOID * addr){
 }
 
 
+/*
 // ip : instructionのアドレス
 // addr  : readするアドレス
 VOID Static_ReadMemAnalysis(VOID * ip, VOID * addr){
@@ -115,6 +115,7 @@ VOID Static_ReadMemAnalysis(VOID * ip, VOID * addr){
 VOID Static_WriteMemAnalysis(VOID * ip, VOID * addr){
     printf("Mem write(Dynamic) : %p\n",addr);
 }
+*/
 
 /* ===================================================================== */
 /*      Trace Implement                                                  */
@@ -145,6 +146,7 @@ VOID Trace(TRACE trace, VOID *v){
     }
 }
 
+/*
 VOID Instruction(INS ins,VOID *v){
     UINT32 memOperands = INS_MemoryOperandCount(ins);
 
@@ -168,6 +170,7 @@ VOID Instruction(INS ins,VOID *v){
         }
     }
 }
+*/
 
 /* ===================================================================== */
 /*      Replacement Routine                                              */
@@ -326,7 +329,7 @@ int main(int argc,char* argv[]){
     TRACE_AddInstrumentFunction(Trace,0);
 
     // Try Analysis read and write static
-    INS_AddInstrumentFunction(Instruction, 0);
+    // INS_AddInstrumentFunction(Instruction, 0);
 
     // Register Fini to be called when the application exist
     PIN_AddFiniFunction(Fini,0);
