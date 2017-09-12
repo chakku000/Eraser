@@ -7,6 +7,7 @@
 #include <bitset>
 #include "pin.H"
 
+
 /* ===================================================================== */
 /*      Const Value                                                      */
 /* ===================================================================== */
@@ -89,16 +90,30 @@ PIN_LOCK pinlock;
 /*      Analysis Read and Write access                                   */
 /* ===================================================================== */
 
+
 // ip : instructionのアドレス
 // addr  : readするアドレス
 VOID ReadMemAnalysis(VOID * ip, VOID * addr){
-    std::cout << "Mem Read\t:\t" << (uint64_t)addr << std::endl;
+    printf("Mem Read(Dynamic) : %p\n",addr);
 }
 
 // ip : instructionのアドレス
 // addr : writeのアドレス
 VOID WriteMemAnalysis(VOID * ip, VOID * addr){
-    std::cout << "Mem Write\t:\t" << (uint64_t)addr << std::endl;
+    printf("Mem write(Dynamic) : %p\n",addr);
+}
+
+
+// ip : instructionのアドレス
+// addr  : readするアドレス
+VOID Static_ReadMemAnalysis(VOID * ip, VOID * addr){
+    printf("Mem Read(static) : %p\n",addr);
+}
+
+// ip : instructionのアドレス
+// addr : writeのアドレス
+VOID Static_WriteMemAnalysis(VOID * ip, VOID * addr){
+    printf("Mem write(Dynamic) : %p\n",addr);
 }
 
 /* ===================================================================== */
@@ -126,6 +141,30 @@ VOID Trace(TRACE trace, VOID *v){
                             IARG_END);
                 }
             }
+        }
+    }
+}
+
+VOID Instruction(INS ins,VOID *v){
+    UINT32 memOperands = INS_MemoryOperandCount(ins);
+
+    for (UINT32 memOp = 0; memOp < memOperands; memOp++)
+    {
+        if (INS_MemoryOperandIsRead(ins, memOp))
+        {
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR)Static_ReadMemAnalysis,
+                IARG_INST_PTR,
+                IARG_MEMORYOP_EA, memOp,
+                IARG_END);
+        }
+        if (INS_MemoryOperandIsWritten(ins, memOp))
+        {
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR)Static_WriteMemAnalysis,
+                IARG_INST_PTR,
+                IARG_MEMORYOP_EA, memOp,
+                IARG_END);
         }
     }
 }
@@ -267,7 +306,7 @@ VOID ImageLoad(IMG img,VOID *v){
 
 
 VOID Fini(INT32 code,VOID *v){}
-/*}}}*/
+///*}}}*/
 
 /* ===================================================================== */
 /* Print Help Message                                                    */
@@ -275,7 +314,7 @@ VOID Fini(INT32 code,VOID *v){}
 
 int main(int argc,char* argv[]){
     // Initialize the pin Lock
-    PIN_InitLock(&pinlock);
+    //PIN_InitLock(&pinlock);
     // Initialie pin
     PIN_InitSymbols();
     PIN_Init(argc,argv);
@@ -285,6 +324,9 @@ int main(int argc,char* argv[]){
 
     // Register Instruction to be called to instrument instruction
     TRACE_AddInstrumentFunction(Trace,0);
+
+    // Try Analysis read and write static
+    INS_AddInstrumentFunction(Instruction, 0);
 
     // Register Fini to be called when the application exist
     PIN_AddFiniFunction(Fini,0);
