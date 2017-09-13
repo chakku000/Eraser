@@ -7,169 +7,41 @@
 #include <bitset>
 #include "pin.H"
 
+
+/* ===================================================================== */
+/*      Include Files                                                    */
+/* ===================================================================== */
+
 #ifndef INCLUDE_CONSTANT
 #include "constant.hpp"
 #endif
+
 #ifndef INCLUDE_TYPE
 #include "type.hpp"
 #endif
 
+#ifndef INCLUDE_LOCKMANAGER
+#include "lockmanager.hpp"
+#endif
 
-/* ===================================================================== */
-/*      Data Structure                                                   */
-/* ===================================================================== */
+#ifndef INCLUDE_SHADOWWORD
+#include "shadowword.hpp"
+#endif
 
-/* ------------------------------------------------------------*
- * ロックのアドレスとロック番号を対応付ける構造体
- * ------------------------------------------------------------*/
-template<typename Key,typename Val> struct LockManager{/*{{{*/
-    private:
-        uint32_t index=1;   // 次のロックに割り振る値
-        std::map<Key,Val> addressToIndex;  // ロックのアドレス -> ロックのインデックス のテーブル
+#ifndef INCLUDE_LOCKSHELD
+#include "locksheld.hpp"
+#endif
 
-    public:
-        /*
-         * ロックのアドレスを与えて,そのロックの番号を返す
-         */
-        Val getLockNumber(Key addr){
-            if(addressToIndex.count(addr)) return addressToIndex[addr];
-            else return addressToIndex[addr] = index++;
-        }
-};/*}}}*/
-
-/* ------------------------------------------------------------*
- * 各スレッドの持つロックを管理
- * ------------------------------------------------------------*/
-struct LocksHeld{/*{{{*/
-    private:
-        std::map<uint32_t,Locks> locks_held;
-    public:
-        /*
-         * スレッドIDがthread_idのスレッドのlocks_held(thread_id)を返す
-         */
-        Locks getLocks(uint32_t thread_id){
-            return locks_held[thread_id];
-        }
-
-        /*
-         * arg0 thread_id : スレッドid
-         * arg1 lkid      : ロックID
-         * thread_idのスレッドのlocks_held(thread_id)にロックlkidを追加
-         */
-        void addLock(const uint32_t thread_id ,const uint32_t lkid){
-            Locks lk = locks_held.count(thread_id) ? locks_held[thread_id] : 0;
-            lk |= (1 << lkid);
-            locks_held[thread_id] = lk;
-        }
-
-        /*
-         * arg0 thread_id : スレッドid
-         * arg1 lkid      : ロックID
-         * thread_idのスレッドのlocks_held(thread_id)からロックlkidを除去
-         */
-        void deleteLock(const uint32_t thread_id , const uint32_t lkid){
-            Locks mask = ~(1 << lkid);
-            locks_held[thread_id] &= mask;
-        }
-};/*}}}*/
-
-/* ------------------------------------------------------------*
- * shadow word (詳細は論文)
- * ------------------------------------------------------------*/
-struct ShadowWord{/*{{{*/
-    private:
-        enum State{
-            Virgin,
-            Exclusive,
-            Shared,
-            SharedModified,
-        };
-        Locks lockset;
-        uint32_t th;
-        State state;
-    public:
-        /*------------------------------------------------------------------------------*/
-        /* Constructor                                                                  */
-        /* 初期状態をExclusiveにすることで事前にアドレスを保持する必要をなくす          */
-        /*------------------------------------------------------------------------------*/
-        ShadowWord(){
-            state = Exclusive;
-            lockset.set();
-        }
-        ShadowWord(uint32_t thread_id){
-            th = thread_id;
-            state = Exclusive;
-            lockset.set();
-        }
-
-        /* -----------------------------------*/
-        /* Update state and candidate lockset */
-        /* -----------------------------------*/
-        void read_access(uint32_t thread_id , Locks locksheld){
-            if(state == Virgin){
-                state = Exclusive;
-                th = thread_id;
-            }else if(state == Exclusive){
-                if(th != thread_id){
-                    state = Shared;
-                    lockset &= locksheld;
-                }
-            }else if(state == Shared){
-                lockset &= locksheld;
-            }else if(state == SharedModified){
-                lockset &= locksheld;
-                if(!lockset.any()){
-                    // 警告
-                    std::cerr << "Candidate Lock Set is empty" << std::endl;
-                }
-            }
-        }
-
-        void write_access(uint32_t thread_id,Locks locksheld){
-            if(state == Virgin){
-                state = Exclusive;
-                th = thread_id;
-            }else if(state == Exclusive){
-                if(th != thread_id){
-                    state = SharedModified;
-                    lockset &= locksheld;
-                }
-            }else if(state == Shared){
-                state = SharedModified;
-                lockset &= locksheld;
-            }else if(state == SharedModified){
-                lockset &= locksheld;
-                if(!lockset.any()){
-                    // 警告
-                    std::cerr << "Candidate Lock Set is empty" << std::endl;
-                }
-            }
-        }
-
-        void print(){
-            std::string s;
-            if(state == Virgin) s = "Virgin";
-            else if(state == Exclusive) s = "Exclusive";
-            else if(state == Shared) s = "Shared";
-            else if(state == SharedModified) s = "SharedModified";
-
-            std::cout << "state = " << s << std::endl;
-            std::cout << "C(v) = " << lockset << std::endl;
-            if(state == Exclusive) std::cout << "thread = " << th << std::endl;
-
-            std::cout << std::endl;
-        }
-};/*}}}*/
 
 
 /* ===================================================================== */
 /*      Grobal Variable                                                  */
 /* ===================================================================== */
 LockManager<pthread_mutex_t*,uint32_t> lockmanager;
-LocksHeld locks_held;
+LocksHeld<THREADID,LockSet> locks_held;
 
 //! {key:検査する変数のアドレス val:変数のシャドーワード}となっているシャドーワード管理用map
-std::map<uint32_t,ShadowWord> candidateLockset; // key : 変数のアドレス , val : 変数のshadow word
+std::map<ADDRINT,ShadowWord<LockSet>> candidateLockset; // key : 変数のアドレス , val : 変数のshadow word
 PIN_LOCK pinlock;
 
 
@@ -193,7 +65,7 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
     // スレッドの保持するロック集合
-    Locks locks = locks_held.getLocks(thread_id);
+    LockSet locks = locks_held.getLocks(thread_id);
 
     // C(v) を更新
     candidateLockset[addr].read_access(thread_id,locks);
@@ -214,7 +86,7 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
     // スレッドの保持するロック集合
-    Locks locks = locks_held.getLocks(thread_id);
+    LockSet locks = locks_held.getLocks(thread_id);
 
     // C(v) を更新
     candidateLockset[addr].write_access(thread_id,locks);
