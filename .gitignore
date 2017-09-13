@@ -1,5 +1,6 @@
 *.swp
 *.out
+*.gch
 obj-intel64
 input/ex0
 input/ex1
@@ -8,3 +9,4 @@ out
 err
 input
 output.txt
+
