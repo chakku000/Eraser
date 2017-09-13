@@ -25,8 +25,7 @@ using Locks = bitset<max_lock>;      // ロックの最大個数を128とする
 /* ------------------------------------------------------------*
  * ロックのアドレスとロック番号を対応付ける構造体
  * ------------------------------------------------------------*/
-template<typename Key,typename Val>
-struct LockManager{/*{{{*/
+template<typename Key,typename Val> struct LockManager{/*{{{*/
     private:
         uint32_t index=1;   // 次のロックに割り振る値
         std::map<Key,Val> addressToIndex;  // ロックのアドレス -> ロックのインデックス のテーブル
@@ -40,7 +39,6 @@ struct LockManager{/*{{{*/
             else return addressToIndex[addr] = index++;
         }
 };/*}}}*/
-
 
 /* ------------------------------------------------------------*
  * 各スレッドの持つロックを管理
@@ -78,11 +76,9 @@ struct LocksHeld{/*{{{*/
         }
 };/*}}}*/
 
-
 /* ------------------------------------------------------------*
  * shadow word (詳細は論文)
  * ------------------------------------------------------------*/
-
 struct ShadowWord{/*{{{*/
     private:
         enum State{
@@ -174,6 +170,8 @@ struct ShadowWord{/*{{{*/
 /* ===================================================================== */
 LockManager<pthread_mutex_t*,uint32_t> lockmanager;
 LocksHeld locks_held;
+
+//! {key:検査する変数のアドレス val:変数のシャドーワード}となっているシャドーワード管理用map
 std::map<uint32_t,ShadowWord> candidateLockset; // key : 変数のアドレス , val : 変数のshadow word
 PIN_LOCK pinlock;
 
@@ -182,32 +180,49 @@ PIN_LOCK pinlock;
 /*      Analysis Read and Write access                                   */
 /* ===================================================================== */
 
-// ip : instructionのアドレス
-// addr  : readするアドレス
-VOID ReadMemAnalysis(VOID * ip, VOID * addr){
-    printf("Mem Read(Dynamic) : %p\n",addr);
-}
+/*
+ * @fn
+ * @brief メモリにREADアクセスが発生したときに動作する関数
+ * @param ip  insturuction address
+ * @param addr readするアドレス
+ * @detail  メモリアドレスaddrがREADされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
+ */
+// VOID ReadMemAnalysis(VOID * ip, VOID * addr){
+VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
+    // スレッドID
+    THREADID thread_id = PIN_ThreadId();
 
-// ip : instructionのアドレス
-// addr : writeのアドレス
-VOID WriteMemAnalysis(VOID * ip, VOID * addr){
-    printf("Mem write(Dynamic) : %p\n",addr);
-}
+    // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
+    //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
+    // スレッドの保持するロック集合
+    Locks locks = locks_held.getLocks(thread_id);
+
+    // C(v) を更新
+    candidateLockset[addr].read_access(thread_id,locks);
+}
 
 /*
-// ip : instructionのアドレス
-// addr  : readするアドレス
-VOID Static_ReadMemAnalysis(VOID * ip, VOID * addr){
-    printf("Mem Read(static) : %p\n",addr);
+ * @fn
+ * @brief メモリにWRITEアクセスが発生したときに動作する関数
+ * @param ip  insturuction address
+ * @param addr writeするアドレス
+ * @detail  メモリアドレスaddrがWRITEされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
+ */
+VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){
+    // スレッドID
+    THREADID thread_id = PIN_ThreadId();
+
+    // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
+    //OS_THREAD_ID os_thread_id = PIN_GetTid();
+
+    // スレッドの保持するロック集合
+    Locks locks = locks_held.getLocks(thread_id);
+
+    // C(v) を更新
+    candidateLockset[addr].write_access(thread_id,locks);
 }
 
-// ip : instructionのアドレス
-// addr : writeのアドレス
-VOID Static_WriteMemAnalysis(VOID * ip, VOID * addr){
-    printf("Mem write(Dynamic) : %p\n",addr);
-}
-*/
 
 /* ===================================================================== */
 /*      Trace Implement                                                  */
@@ -238,31 +253,6 @@ VOID Trace(TRACE trace, VOID *v){
     }
 }
 
-/*
-VOID Instruction(INS ins,VOID *v){
-    UINT32 memOperands = INS_MemoryOperandCount(ins);
-
-    for (UINT32 memOp = 0; memOp < memOperands; memOp++)
-    {
-        if (INS_MemoryOperandIsRead(ins, memOp))
-        {
-            INS_InsertPredicatedCall(
-                ins, IPOINT_BEFORE, (AFUNPTR)Static_ReadMemAnalysis,
-                IARG_INST_PTR,
-                IARG_MEMORYOP_EA, memOp,
-                IARG_END);
-        }
-        if (INS_MemoryOperandIsWritten(ins, memOp))
-        {
-            INS_InsertPredicatedCall(
-                ins, IPOINT_BEFORE, (AFUNPTR)Static_WriteMemAnalysis,
-                IARG_INST_PTR,
-                IARG_MEMORYOP_EA, memOp,
-                IARG_END);
-        }
-    }
-}
-*/
 
 /* ===================================================================== */
 /*      Replacement Routine                                              */
@@ -419,9 +409,6 @@ int main(int argc,char* argv[]){
 
     // Register Instruction to be called to instrument instruction
     TRACE_AddInstrumentFunction(Trace,0);
-
-    // Try Analysis read and write static
-    // INS_AddInstrumentFunction(Instruction, 0);
 
     // Register Fini to be called when the application exist
     PIN_AddFiniFunction(Fini,0);
