@@ -4,7 +4,9 @@
  */
 #include <bitset>
 
+#ifndef INCLUDE_TYPE
 #define INCLUDE_TYPE
+#endif
 
 #ifndef INCLUDE_CONSTANT
 #include "constant.hpp"
