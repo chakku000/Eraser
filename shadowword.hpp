@@ -32,10 +32,12 @@ struct ShadowWord{
         /* Constructor                                                                  */
         /* 初期状態をExclusiveにすることで事前にアドレスを保持する必要をなくす          */
         /*------------------------------------------------------------------------------*/
-        ShadowWord(){
-            state = Exclusive;
-            lockset.set();
-        }
+        //ShadowWord(){
+        //    fprintf(stderr,"new shadow word\n");
+        //    state = Exclusive;
+        //    lockset.set();
+        //}
+        ShadowWord() = delete;
         ShadowWord(uint32_t thread_id){
             th = thread_id;
             state = Exclusive;
@@ -60,7 +62,9 @@ struct ShadowWord{
                 lockset &= locksheld;
                 if(!lockset.any()){
                     // 警告
-                    std::cerr << "\x1b[41mCandidate Lock Set is empty\x1b[0m" << std::endl;
+                    //std::cerr << "Datarace found" << std::endl;
+                    //std::cerr << "Access Type : READ" << std::endl;
+                    fprintf(stderr,"Datarace Found (READ). ThreadID (%d)\n",thread_id);
                 }
             }
         }
@@ -81,11 +85,16 @@ struct ShadowWord{
                 lockset &= locksheld;
                 if(!lockset.any()){
                     // 警告
-                    std::cerr << "\x1b[41mCandidate Lock Set is empty\x1b[0m" << std::endl;
+                    //std::cerr << "Datarace found" << std::endl;
+                    //std::cerr << "Access Type : WRITE" << std::endl;
+                    fprintf(stderr,"Datarace Found (WRITE). ThreadID (%d)\n",thread_id);
                 }
             }
         }
 
+        /**
+         *  @brief デバッグ用
+         */
         void print(){
             std::string s;
             if(state == Virgin) s = "Virgin";
