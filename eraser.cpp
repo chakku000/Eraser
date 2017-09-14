@@ -44,7 +44,9 @@ LocksHeld<THREADID,LockSet> locks_held;
 std::map<ADDRINT,ShadowWord<LockSet>> candidateLockset; // key : 変数のアドレス , val : 変数のshadow word
 PIN_LOCK pinlock;
 PIN_LOCK C_lock;
+PIN_LOCK thread_create_lock;
 
+bool update_Cv = true;
 
 /* ===================================================================== */
 /*      Analysis Read and Write access                                   */
@@ -59,6 +61,7 @@ PIN_LOCK C_lock;
  */
 // VOID ReadMemAnalysis(VOID * ip, VOID * addr){
 VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
+    if(!update_Cv) return;
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
@@ -88,6 +91,7 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
  * @detail  メモリアドレスaddrがWRITEされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
  */
 VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){
+    if(!update_Cv) return;
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
@@ -215,6 +219,37 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
 
 /*}}}*/
 
+/**
+ * @fn
+ * pthread_createをこの関数で置換する
+ * @detail pthread_createの中で競合が発生している可能性がたかいのでpthread_createの前にC(v)の更新をやめる宣言をして,pthread_createの終了後にC(v)の更新を再開する
+ */
+int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , pthread_attr_t * attr, void* fun_ptr , void* args){
+    int ret = 0;
+
+    uint32_t thread_id = PIN_ThreadId();
+    PIN_GetLock(&thread_create_lock,thread_id+1);
+    std::cerr << "Stop update C(v)" << std::endl;
+    update_Cv = false;
+
+    PIN_CallApplicationFunction(
+            context,thread_id,
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            NULL,
+            PIN_PARG(int), &ret,
+            PIN_PARG(pthread_t*), th,
+            PIN_PARG(pthread_attr_t*), attr,
+            PIN_PARG(void*), fun_ptr,
+            PIN_PARG(void*), args,
+            PIN_PARG_END());
+
+    update_Cv = true;
+    std::cerr << "Restart update C(v)" << std::endl;
+    PIN_ReleaseLock(&thread_create_lock);
+    return ret;
+}
+
 /* ===================================================================== */
 /* プログラム実行前にimageを検査して,ロックの解放,獲得の関数を置き換える */
 /* ===================================================================== */
@@ -270,6 +305,34 @@ VOID ImageLoad(IMG img,VOID *v){
                     IARG_ORIG_FUNCPTR,
                     IARG_FUNCARG_ENTRYPOINT_VALUE,
                     0,
+                    IARG_END);
+        }
+    }
+
+    // replace pthread_thread_create
+    {
+        PROTO proto_pthread_create = PROTO_Allocate(
+                                        PIN_PARG(int),      // 戻り値の型情報
+                                        CALLINGSTD_DEFAULT,
+                                        "pthread_create",
+                                        PIN_PARG(pthread_t*),
+                                        PIN_PARG(pthread_attr_t*),
+                                        PIN_PARG(void*),
+                                        PIN_PARG(void*),
+                                        PIN_PARG_END());
+
+        RTN rtn = RTN_FindByName(img,"pthread_create");
+
+        if(RTN_Valid(rtn)){
+            RTN_ReplaceSignature(
+                    rtn,AFUNPTR(Jit_PthreadCreate),
+                    IARG_PROTOTYPE,proto_pthread_create,
+                    IARG_CONTEXT,
+                    IARG_ORIG_FUNCPTR,
+                    IARG_FUNCARG_ENTRYPOINT_VALUE, 0,   // pthread_t*
+                    IARG_FUNCARG_ENTRYPOINT_VALUE, 1,   // pthread_attr_t*
+                    IARG_FUNCARG_ENTRYPOINT_VALUE, 2,   // void *
+                    IARG_FUNCARG_ENTRYPOINT_VALUE, 3,   // void *
                     IARG_END);
         }
     }
