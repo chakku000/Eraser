@@ -1,39 +1,22 @@
 #include <stdio.h>
 #include <pthread.h>
 
-#define NOLOCK
+//pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 
-const size_t loop_max = 65535;
 
-pthread_mutex_t mu1 = PTHREAD_MUTEX_INITIALIZER;
+//int count=0;
 
-int counter_lock=0;
-
-void count_with_lock(){
-    printf("---------- New Thread Count Start ----------\n");
-    pthread_mutex_lock(&mu1);
-    counter_lock++;
-    pthread_mutex_unlock(&mu1);
-    printf("---------- New Thread Count End ----------\n");
-}
+void f(){}
 
 int main(){
-    puts("\n========== User Program Start ==========");
-    pthread_t thread1;
-
-    pthread_create(&thread1,NULL,(void*)count_with_lock,NULL);
-
-    pthread_join(thread1,NULL);
-    printf("with lock after thread1 : %d\n",counter_lock);
-
-    pthread_mutex_t mu2 = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mu2);
-    counter_lock++;
-    pthread_mutex_unlock(&mu2);
-    printf("with lock after thread0 : %d\n",counter_lock);
-
-    pthread_mutex_destroy(&mu1);
-    pthread_mutex_destroy(&mu2);
-    puts("========== Done ==========\n");
-    return 0;
+    fprintf(stderr,"main start\n");
+    pthread_t th1;
+    //pthread_t th2;
+    pthread_create(&th1,NULL,(void *)f,NULL);
+    //pthread_create(&th2,NULL,(void *)f,NULL);
+    //count++;
+    //pthread_join(th1,NULL);
+    //pthread_mutex_destroy(&mu);
+    //fprintf(stderr,"main end (%d)\n",count);
+    fprintf(stderr,"main end\n");
 }
