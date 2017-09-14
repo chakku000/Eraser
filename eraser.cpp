@@ -43,6 +43,7 @@ LocksHeld<THREADID,LockSet> locks_held;
 //! {key:検査する変数のアドレス val:変数のシャドーワード}となっているシャドーワード管理用map
 std::map<ADDRINT,ShadowWord<LockSet>> candidateLockset; // key : 変数のアドレス , val : 変数のshadow word
 PIN_LOCK pinlock;
+PIN_LOCK C_lock;
 
 
 /* ===================================================================== */
@@ -65,10 +66,18 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
     // スレッドの保持するロック集合
+    PIN_GetLock(&pinlock,thread_id+1);
     LockSet locks = locks_held.getLocks(thread_id);
+    PIN_ReleaseLock(&pinlock);
 
     // C(v) を更新
-    candidateLockset[addr].read_access(thread_id,locks);
+    PIN_GetLock(&C_lock,thread_id+1);
+    if(!candidateLockset.count(addr)){
+        candidateLockset[addr] = ShadowWord<LockSet>(thread_id);
+    }{
+        candidateLockset[addr].read_access(thread_id,locks);
+    }
+    PIN_ReleaseLock(&C_lock);
 }
 
 /*
@@ -86,10 +95,18 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
     // スレッドの保持するロック集合
+    PIN_GetLock(&pinlock,thread_id+1);
     LockSet locks = locks_held.getLocks(thread_id);
+    PIN_ReleaseLock(&pinlock);
 
     // C(v) を更新
-    candidateLockset[addr].write_access(thread_id,locks);
+    PIN_GetLock(&C_lock,thread_id+1);
+    if(!candidateLockset.count(addr)){
+        candidateLockset[addr] = ShadowWord<LockSet>(thread_id);
+    }{
+        candidateLockset[addr].write_access(thread_id,locks);
+    }
+    PIN_ReleaseLock(&C_lock);
 }
 
 
