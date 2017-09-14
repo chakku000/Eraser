@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdint>
+#include <vector>
 
 #ifndef INCLUDE_TYPE
 #include "type.hpp"
@@ -24,9 +25,17 @@ struct ShadowWord{
             Shared,
             SharedModified,
         };
+        class Access{
+            public:
+                uint32_t threadid;
+                Lockset lk;
+                string type;
+                Access(uint32_t th , Lockset lks , string t) : threadid(th) , lk(lks) , type(t){}
+        };
         Lockset lockset;
         uint32_t th;
         State state;
+        std::vector<Access> history;
     public:
         /*------------------------------------------------------------------------------*/
         /* Constructor                                                                  */
@@ -37,17 +46,20 @@ struct ShadowWord{
         //    state = Exclusive;
         //    lockset.set();
         //}
-        ShadowWord() = delete;
+        ShadowWord(){}
         ShadowWord(uint32_t thread_id){
             th = thread_id;
             state = Exclusive;
             lockset.set();
+
+            history.push_back(Access(thread_id,lockset,"init"));
         }
 
         /* -----------------------------------*/
         /* Update state and candidate lockset */
         /* -----------------------------------*/
         void read_access(uint32_t thread_id , LockSet locksheld){
+            history.push_back(Access(thread_id,locksheld,"read"));
             if(state == Virgin){
                 state = Exclusive;
                 th = thread_id;
@@ -62,14 +74,17 @@ struct ShadowWord{
                 lockset &= locksheld;
                 if(!lockset.any()){
                     // 警告
-                    //std::cerr << "Datarace found" << std::endl;
-                    //std::cerr << "Access Type : READ" << std::endl;
                     fprintf(stderr,"Datarace Found (READ). ThreadID (%d)\n",thread_id);
+                    for(size_t i=0;i<history.size();i++){
+                        Access ac = history[i];
+                        cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
+                    }
                 }
             }
         }
 
         void write_access(uint32_t thread_id,LockSet locksheld){
+            history.push_back(Access(thread_id,locksheld,"write"));
             if(state == Virgin){
                 state = Exclusive;
                 th = thread_id;
@@ -85,9 +100,11 @@ struct ShadowWord{
                 lockset &= locksheld;
                 if(!lockset.any()){
                     // 警告
-                    //std::cerr << "Datarace found" << std::endl;
-                    //std::cerr << "Access Type : WRITE" << std::endl;
                     fprintf(stderr,"Datarace Found (WRITE). ThreadID (%d)\n",thread_id);
+                    for(size_t i=0;i<history.size();i++){
+                        Access ac = history[i];
+                        cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
+                    }
                 }
             }
         }
