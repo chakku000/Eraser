@@ -12,7 +12,7 @@ int main(){
     fprintf(stderr,"main start\n");
     pthread_t th1;
     //pthread_t th2;
-    pthread_create(&th1,NULL,(void *)f,NULL);
+   /pthread_create(&th1,NULL,(void *)f,NULL);
     //pthread_create(&th2,NULL,(void *)f,NULL);
     //count++;
     //pthread_join(th1,NULL);
