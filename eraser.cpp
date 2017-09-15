@@ -47,6 +47,7 @@ PIN_LOCK C_lock;
 PIN_LOCK thread_create_lock;
 
 bool update_Cv = true;
+bool implementOn = true;
 
 /* ===================================================================== */
 /*      Analysis Read and Write access                                   */
@@ -60,8 +61,8 @@ bool update_Cv = true;
  * @detail  メモリアドレスaddrがREADされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
  */
 // VOID ReadMemAnalysis(VOID * ip, VOID * addr){
-VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
-    if(!update_Cv) return;
+VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
+    if(!update_Cv or !implementOn) return;
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
@@ -81,7 +82,7 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
         candidateLockset[addr].read_access(thread_id,locks);
     }
     PIN_ReleaseLock(&C_lock);
-}
+}/*}}}*/
 
 /*
  * @fn
@@ -90,8 +91,8 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){
  * @param addr writeするアドレス
  * @detail  メモリアドレスaddrがWRITEされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
  */
-VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){
-    if(!update_Cv) return;
+VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
+    if(!update_Cv or !implementOn) return;
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
@@ -111,7 +112,7 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){
         candidateLockset[addr].write_access(thread_id,locks);
     }
     PIN_ReleaseLock(&C_lock);
-}
+}/*}}}*/
 
 
 /* ===================================================================== */
@@ -137,6 +138,17 @@ VOID Trace(TRACE trace, VOID *v){
                             IARG_INST_PTR,                      // 計装されるinstructionのアドレス
                             IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
                             IARG_END);
+                }
+            }
+
+            // 命令がmain関数のreturnのとき,計装を終了する
+            if(INS_IsRet(ins)){
+                RTN rtn = INS_Rtn(ins);
+                if(RTN_Valid(rtn)){
+                    std::string rtn_name = RTN_Name(rtn);
+                    if(rtn_name == "main"){
+                        implementOn = false;
+                    }
                 }
             }
         }
@@ -259,6 +271,7 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
  *  pthread_mutex_lock() 関数を置き換える
  */
 VOID ImageLoad(IMG img,VOID *v){
+
 
     // replace pthread_mutex_lock
     // Define a function prototype that describes the application routine that will be replaced
