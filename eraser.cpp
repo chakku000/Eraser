@@ -44,9 +44,10 @@ LocksHeld<THREADID,LockSet> locks_held;
 std::map<ADDRINT,ShadowWord<LockSet>> candidateLockset; // key : 変数のアドレス , val : 変数のshadow word
 PIN_LOCK pinlock;
 PIN_LOCK C_lock;
-PIN_LOCK thread_create_lock;
 
 bool update_Cv = true;
+PIN_LOCK update_Cv_lock;
+
 bool implementOn = true;
 
 /* ===================================================================== */
@@ -240,7 +241,7 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
     int ret = 0;
 
     uint32_t thread_id = PIN_ThreadId();
-    PIN_GetLock(&thread_create_lock,thread_id+1);
+    PIN_GetLock(&update_Cv_lock,thread_id+1);
     std::cerr << "Stop update C(v)" << std::endl;
     update_Cv = false;
 
@@ -258,7 +259,35 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
 
     update_Cv = true;
     std::cerr << "Restart update C(v)" << std::endl;
-    PIN_ReleaseLock(&thread_create_lock);
+    PIN_ReleaseLock(&update_Cv_lock);
+    return ret;
+}
+
+/**
+ * @fn
+ * pthread_joinをこの関数で置換する
+ * @detail pthread_joinの中で競合が発生している可能性があるのでpthread_joinの開始前にC(v)の更新をやめる宣言をし,pthread_createの後にC(v)の更新を再開する
+ */
+int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** thread_return){
+    int ret = 0;
+    uint32_t thread_id = PIN_ThreadId();
+    PIN_GetLock(&update_Cv_lock,thread_id+1);
+    std::cerr << "Stop update C(v)" << std::endl;
+    update_Cv = false;
+
+    PIN_CallApplicationFunction(
+            context,thread_id,
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            NULL,
+            PIN_PARG(int),&ret,
+            PIN_PARG(pthread_t), th,
+            PIN_PARG(void**), thread_return,
+            PIN_PARG_END());
+
+    update_Cv = true;
+    std::cerr << "Restart update C(v)" << std::endl;
+    PIN_ReleaseLock(&update_Cv_lock);
     return ret;
 }
 
@@ -346,6 +375,29 @@ VOID ImageLoad(IMG img,VOID *v){
                     IARG_FUNCARG_ENTRYPOINT_VALUE, 1,   // pthread_attr_t*
                     IARG_FUNCARG_ENTRYPOINT_VALUE, 2,   // void *
                     IARG_FUNCARG_ENTRYPOINT_VALUE, 3,   // void *
+                    IARG_END);
+        }
+    }
+
+    // replace pthread_join
+    {
+        PROTO proto_pthread_join = PROTO_Allocate(
+                                        PIN_PARG(int),  // pthread_joinの戻り値
+                                        CALLINGSTD_DEFAULT,
+                                        "pthread_join",
+                                        PIN_PARG(pthread_t),
+                                        PIN_PARG(void**),
+                                        PIN_PARG_END());
+        RTN rtn = RTN_FindByName(img,"pthread_join");
+
+        if(RTN_Valid(rtn)){
+            RTN_ReplaceSignature(
+                    rtn,AFUNPTR(Jit_PthreadJoin),
+                    IARG_PROTOTYPE,proto_pthread_join,
+                    IARG_CONTEXT,
+                    IARG_ORIG_FUNCPTR,
+                    IARG_FUNCARG_ENTRYPOINT_VALUE,0,    // pthread_t
+                    IARG_FUNCARG_ENTRYPOINT_VALUE,1,    // void**
                     IARG_END);
         }
     }
