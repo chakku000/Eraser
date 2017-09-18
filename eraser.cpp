@@ -32,7 +32,7 @@
 #include "locksheld.hpp"
 #endif
 
-
+//#define ERASER_DEBUG
 
 /* ===================================================================== */
 /*      Grobal Variable                                                  */
@@ -48,7 +48,9 @@ PIN_LOCK C_lock;
 bool update_Cv = true;
 PIN_LOCK update_Cv_lock;
 
-bool implementOn = true;
+bool implementOn = false;
+
+PIN_LOCK print_lock;
 
 /* ===================================================================== */
 /*      Analysis Read and Write access                                   */
@@ -70,6 +72,10 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
+    PIN_GetLock(&print_lock,thread_id+1);
+    std::cerr << "READ  " << thread_id << " " << std::hex << addr << std::endl;
+    PIN_ReleaseLock(&print_lock);
+
     // スレッドの保持するロック集合
     PIN_GetLock(&pinlock,thread_id+1);
     LockSet locks = locks_held.getLocks(thread_id);
@@ -78,7 +84,7 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     // C(v) を更新
     PIN_GetLock(&C_lock,thread_id+1);
     if(!candidateLockset.count(addr)){
-        candidateLockset[addr] = ShadowWord<LockSet>(thread_id);
+        candidateLockset[addr] = ShadowWord<LockSet>(thread_id,addr);
     }{
         candidateLockset[addr].read_access(thread_id,locks);
     }
@@ -100,6 +106,10 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
+    PIN_GetLock(&print_lock,thread_id+1);
+    std::cerr << "WRITE " << thread_id << " " << std::hex << addr << std::endl;
+    PIN_ReleaseLock(&print_lock);
+
     // スレッドの保持するロック集合
     PIN_GetLock(&pinlock,thread_id+1);
     LockSet locks = locks_held.getLocks(thread_id);
@@ -108,7 +118,7 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     // C(v) を更新
     PIN_GetLock(&C_lock,thread_id+1);
     if(!candidateLockset.count(addr)){
-        candidateLockset[addr] = ShadowWord<LockSet>(thread_id);
+        candidateLockset[addr] = ShadowWord<LockSet>(thread_id,addr);
     }{
         candidateLockset[addr].write_access(thread_id,locks);
     }
@@ -120,24 +130,28 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
 /*      Trace Implement                                                  */
 /* ===================================================================== */
 
-VOID Trace(TRACE trace, VOID *v){
+VOID Trace(TRACE trace, VOID *v){/*{{{*/
     for(BBL bbl = TRACE_BblHead(trace);BBL_Valid(bbl); bbl = BBL_Next(bbl)){
         for(INS ins = BBL_InsHead(bbl);INS_Valid(ins);ins=INS_Next(ins)){
 
             UINT32 memOperands = INS_MemoryOperandCount(ins);
             for(UINT32 memOp=0;memOp<memOperands;memOp++){
                 if(INS_MemoryOperandIsRead(ins,memOp)){         // Read Access
+                    //INS_InsertCall(
                     INS_InsertPredicatedCall(
                             ins,IPOINT_BEFORE, (AFUNPTR) ReadMemAnalysis,
                             IARG_INST_PTR,                      // 計装されるinstructionのアドレス
                             IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
+                            IARG_THREAD_ID,
                             IARG_END);
                 }
                 if(INS_MemoryOperandIsWritten(ins,memOp)){      // Write access
+                    //INS_InsertCall(
                     INS_InsertPredicatedCall(
                             ins,IPOINT_BEFORE, (AFUNPTR) WriteMemAnalysis,
                             IARG_INST_PTR,                      // 計装されるinstructionのアドレス
                             IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
+                            IARG_THREAD_ID,
                             IARG_END);
                 }
             }
@@ -154,7 +168,7 @@ VOID Trace(TRACE trace, VOID *v){
             }
         }
     }
-}
+}/*}}}*/
 
 
 /* ===================================================================== */
@@ -170,7 +184,7 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
 
     uint32_t thread_id = PIN_ThreadId();
 
-    std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
+    //if(implementOn) std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
 
 
     /* ------------------------------
@@ -206,7 +220,7 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
 
     uint32_t thread_id = PIN_ThreadId();
 
-    std::cerr << "pthread_mutex_unlock replaced. Thread(" << thread_id << ") unlock (" << mu << ")" << std::endl;
+    //if(implementOn) std::cerr << "pthread_mutex_unlock replaced. Thread(" << thread_id << ") unlock (" << mu << ")" << std::endl;
 
     /* ------------------------------
      * locks_held(t) を更新
@@ -242,7 +256,7 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
 
     uint32_t thread_id = PIN_ThreadId();
     PIN_GetLock(&update_Cv_lock,thread_id+1);
-    std::cerr << "Stop update C(v)" << std::endl;
+    //std::cerr << "Stop update C(v)" << std::endl;
     update_Cv = false;
 
     PIN_CallApplicationFunction(
@@ -258,7 +272,7 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
             PIN_PARG_END());
 
     update_Cv = true;
-    std::cerr << "Restart update C(v)" << std::endl;
+    //std::cerr << "Restart update C(v)" << std::endl;
     PIN_ReleaseLock(&update_Cv_lock);
     return ret;
 }
@@ -272,7 +286,7 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
     int ret = 0;
     uint32_t thread_id = PIN_ThreadId();
     PIN_GetLock(&update_Cv_lock,thread_id+1);
-    std::cerr << "Stop update C(v)" << std::endl;
+    //std::cerr << "Stop update C(v)" << std::endl;
     update_Cv = false;
 
     PIN_CallApplicationFunction(
@@ -286,9 +300,14 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
             PIN_PARG_END());
 
     update_Cv = true;
-    std::cerr << "Restart update C(v)" << std::endl;
+    //std::cerr << "Restart update C(v)" << std::endl;
     PIN_ReleaseLock(&update_Cv_lock);
     return ret;
+}
+
+VOID maincheck(){
+    std::cerr << "start main" << std::endl;
+    implementOn = true;
 }
 
 /* ===================================================================== */
@@ -300,6 +319,17 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
  *  pthread_mutex_lock() 関数を置き換える
  */
 VOID ImageLoad(IMG img,VOID *v){
+    // find main
+    {
+        RTN rtn = RTN_FindByName(img,"main");
+        if(RTN_Valid(rtn)){
+            RTN_Open(rtn);
+
+            RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)maincheck,IARG_END);
+
+            RTN_Close(rtn);
+        }
+    }
 
 
     // replace pthread_mutex_lock
@@ -430,5 +460,6 @@ int main(int argc,char* argv[]){
 
     // Start the Program never returns;
     PIN_StartProgram();
+
     return 0;
 }

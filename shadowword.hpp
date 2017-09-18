@@ -34,6 +34,7 @@ struct ShadowWord{
         };
         Lockset lockset;
         uint32_t th;
+        uint64_t addr;
         State state;
         std::vector<Access> history;
     public:
@@ -47,8 +48,9 @@ struct ShadowWord{
         //    lockset.set();
         //}
         ShadowWord(){}
-        ShadowWord(uint32_t thread_id){
+        ShadowWord(uint32_t thread_id,uint64_t ad){
             th = thread_id;
+            addr = ad;
             state = Exclusive;
             lockset.set();
 
@@ -74,7 +76,8 @@ struct ShadowWord{
                 lockset &= locksheld;
                 if(!lockset.any()){
                     // 警告
-                    fprintf(stderr,"Datarace Found (READ). ThreadID (%d)\n",thread_id);
+                    //fprintf(stderr,"Datarace Found (READ) Address(%PRIu64). ThreadID (%d)\n",addr,thread_id);
+                    cerr << "Datarace Found(READ) ADDRESS(" << addr << " ThreadID = " << thread_id << endl;
                     for(size_t i=0;i<history.size();i++){
                         Access ac = history[i];
                         cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
@@ -100,7 +103,8 @@ struct ShadowWord{
                 lockset &= locksheld;
                 if(!lockset.any()){
                     // 警告
-                    fprintf(stderr,"Datarace Found (WRITE). ThreadID (%d)\n",thread_id);
+                    //fprintf(stderr,"Datarace Found (WRITE) Address(%PRIu64). ThreadID (%d)\n",addr,thread_id);
+                    cerr << "Datarace Found(WRITE) ADDRESS(" << addr << " ThreadID = " << thread_id << endl;
                     for(size_t i=0;i<history.size();i++){
                         Access ac = history[i];
                         cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
@@ -122,6 +126,12 @@ struct ShadowWord{
             std::cout << "state = " << s << std::endl;
             std::cout << "C(v) = " << lockset << std::endl;
             if(state == Exclusive) std::cout << "thread = " << th << std::endl;
+
+            std::cout << "history" << endl;
+            for(size_t i=0;i<history.size();i++){
+                Access ac = history[i];
+                cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
+            }
 
             std::cout << std::endl;
         }

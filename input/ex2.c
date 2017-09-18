@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <pthread.h>
 
+int count=0;
+
+void f(){
+}
+
 int main(){
-    puts("\n========== User Program Start ==========");
-    pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&m);
-    pthread_mutex_unlock(&m);
-    puts("========== Done ==========\n");
+    pthread_t th1;
+    pthread_create(&th1,NULL,(void*)f,NULL);
+    pthread_join(th1,NULL);
+    //printf("count = %d\n",count);
 }
