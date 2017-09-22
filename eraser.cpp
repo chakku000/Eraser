@@ -255,20 +255,14 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
 /**
  * @fn
  * pthread_createをこの関数で置換する
- * @detail pthread_createの中で競合が発生している可能性がたかいのでpthread_createの前にC(v)の更新をやめる宣言をして,pthread_createの終了後にC(v)の更新を再開する
  */
 int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , pthread_attr_t * attr, void* fun_ptr , void* args){
     int ret = 0;
-
-    uint32_t thread_id = PIN_ThreadId();
-    PIN_GetLock(&update_Cv_lock,thread_id+1);
-    //std::cerr << "Stop update C(v)" << std::endl;
-    //update_Cv = false;
-
+    // pthread_create関数を計装しない
     CALL_APPLICATION_FUNCTION_PARAM  param;
     param.native=1;
     PIN_CallApplicationFunction(
-            context,thread_id,
+            context,PIN_ThreadId(),
             CALLINGSTD_DEFAULT,
             orgFuncptr,
             &param,
@@ -278,29 +272,20 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
             PIN_PARG(void*), fun_ptr,
             PIN_PARG(void*), args,
             PIN_PARG_END());
-
-    //update_Cv = true;
-    //std::cerr << "Restart update C(v)" << std::endl;
-    PIN_ReleaseLock(&update_Cv_lock);
     return ret;
 }
 
 /**
  * @fn
  * pthread_joinをこの関数で置換する
- * @detail pthread_joinの中で競合が発生している可能性があるのでpthread_joinの開始前にC(v)の更新をやめる宣言をし,pthread_createの後にC(v)の更新を再開する
  */
 int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** thread_return){
     int ret = 0;
-    uint32_t thread_id = PIN_ThreadId();
-    PIN_GetLock(&update_Cv_lock,thread_id+1);
-    //std::cerr << "Stop update C(v)" << std::endl;
-    //update_Cv = false;
-
+    // pthread_join関数を計装しないようにする
     CALL_APPLICATION_FUNCTION_PARAM  param;
     param.native=1;
     PIN_CallApplicationFunction(
-            context,thread_id,
+            context,PIN_ThreadId(),
             CALLINGSTD_DEFAULT,
             orgFuncptr,
             &param,
@@ -308,10 +293,6 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
             PIN_PARG(pthread_t), th,
             PIN_PARG(void**), thread_return,
             PIN_PARG_END());
-
-    //update_Cv = true;
-    //std::cerr << "Restart update C(v)" << std::endl;
-    PIN_ReleaseLock(&update_Cv_lock);
     return ret;
 }
 
