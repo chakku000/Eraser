@@ -45,8 +45,8 @@ std::map<ADDRINT,ShadowWord<LockSet>> candidateLockset; // key : 変数のアド
 PIN_LOCK pinlock;
 PIN_LOCK C_lock;
 
-bool update_Cv = true;
-PIN_LOCK update_Cv_lock;
+//bool update_Cv = true;
+//PIN_LOCK update_Cv_lock;
 
 //bool implementOn = false;
 
@@ -66,7 +66,7 @@ PIN_LOCK rwlock;
  */
 // VOID ReadMemAnalysis(VOID * ip, VOID * addr){
 VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
-    if(!update_Cv or !implementOn) return;
+    //if(!update_Cv or !implementOn) return;
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
@@ -102,7 +102,7 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
  * @detail  メモリアドレスaddrがWRITEされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
  */
 VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
-    if(!update_Cv or !implementOn) return;
+    //if(!update_Cv or !implementOn) return;
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
