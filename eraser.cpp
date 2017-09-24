@@ -73,9 +73,9 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
-    PIN_GetLock(&print_lock,thread_id+1);
-    std::cerr << "READ  " << thread_id << " " << std::hex << addr << std::endl;
-    PIN_ReleaseLock(&print_lock);
+    //PIN_GetLock(&print_lock,thread_id+1);
+    //std::cerr << "READ  " << thread_id << " " << std::hex << addr << std::endl;
+    //PIN_ReleaseLock(&print_lock);
 
     //PIN_GetLock(&rwlock,thread_id+1);
     // スレッドの保持するロック集合
@@ -109,9 +109,9 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
-    PIN_GetLock(&print_lock,thread_id+1);
-    std::cerr << "WRITE " << thread_id << " " << std::hex << addr << std::endl;
-    PIN_ReleaseLock(&print_lock);
+    //PIN_GetLock(&print_lock,thread_id+1);
+    //std::cerr << "WRITE " << thread_id << " " << std::hex << addr << std::endl;
+    //PIN_ReleaseLock(&print_lock);
 
     //PIN_GetLock(&rwlock,thread_id+1);
     // スレッドの保持するロック集合
@@ -168,6 +168,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                     std::string rtn_name = RTN_Name(rtn);
                     if(rtn_name == "main"){
                         implementOn = false;
+                        std::cerr << "End Implement" << std::endl;
                     }
                 }
             }
