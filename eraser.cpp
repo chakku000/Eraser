@@ -48,7 +48,7 @@ PIN_LOCK C_lock;
 bool update_Cv = true;
 PIN_LOCK update_Cv_lock;
 
-bool implementOn = false;
+//bool implementOn = false;
 
 PIN_LOCK print_lock;
 PIN_LOCK rwlock;
@@ -167,7 +167,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                 if(RTN_Valid(rtn)){
                     std::string rtn_name = RTN_Name(rtn);
                     if(rtn_name == "main"){
-                        implementOn = false;
+                        //implementOn = false;
                         std::cerr << "End Implement" << std::endl;
                     }
                 }
@@ -190,7 +190,7 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
 
     uint32_t thread_id = PIN_ThreadId();
 
-    if(implementOn) std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
+    //if(implementOn) std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
 
 
     /* ------------------------------
@@ -227,7 +227,7 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
 
     uint32_t thread_id = PIN_ThreadId();
 
-    if(implementOn) std::cerr << "pthread_mutex_unlock replaced. Thread(" << thread_id << ") unlock (" << mu << ")" << std::endl;
+    //if(implementOn) std::cerr << "pthread_mutex_unlock replaced. Thread(" << thread_id << ") unlock (" << mu << ")" << std::endl;
 
     /* ------------------------------
      * locks_held(t) を更新
@@ -299,7 +299,7 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
 
 VOID maincheck(){
     std::cerr << "start main" << std::endl;
-    implementOn = true;
+    //implementOn = true;
 }
 
 /* ===================================================================== */
