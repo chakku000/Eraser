@@ -48,7 +48,7 @@ PIN_LOCK C_lock;
 //bool update_Cv = true;
 //PIN_LOCK update_Cv_lock;
 
-//bool implementOn = false;
+bool implementOn = false;
 
 PIN_LOCK print_lock;
 PIN_LOCK rwlock;
@@ -130,6 +130,14 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     //PIN_ReleaseLock(&rwlock);
 }/*}}}*/
 
+/*
+ * @fn
+ * @brief mainからreturnされるときに計装を停止する
+ */
+VOID AnalysisReturnFromMain(){/*{{{*/
+    implementOn = false;
+    std::cout << "End Implementation" << std::endl;
+}/*}}}*/
 
 /* ===================================================================== */
 /*      Trace Implement                                                  */
@@ -167,8 +175,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                 if(RTN_Valid(rtn)){
                     std::string rtn_name = RTN_Name(rtn);
                     if(rtn_name == "main"){
-                        //implementOn = false;
-                        std::cerr << "End Implement" << std::endl;
+                        INS_InsertCall(ins,IPOINT_BEFORE,(AFUNPTR)AnalysisReturnFromMain,IARG_CALL_ORDER,CALL_ORDER_LAST,IARG_END);:
                     }
                 }
             }
@@ -297,9 +304,9 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
     return ret;
 }
 
-VOID maincheck(){
+VOID AnalysisMainEntrance(){
     std::cerr << "start main" << std::endl;
-    //implementOn = true;
+    implementOn = true;
 }
 
 /* ===================================================================== */
@@ -317,7 +324,7 @@ VOID ImageLoad(IMG img,VOID *v){
         if(RTN_Valid(rtn)){
             RTN_Open(rtn);
 
-            RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)maincheck,IARG_END);
+            RTN_InsertCall(rtn,IPOINT_BEFORE,(AFUNPTR)AnalysisMainEntrance,IARG_CALL_ORDER,CALL_ORDER_FIRST,IARG_END);
 
             RTN_Close(rtn);
         }
