@@ -175,7 +175,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                 if(RTN_Valid(rtn)){
                     std::string rtn_name = RTN_Name(rtn);
                     if(rtn_name == "main"){
-                        INS_InsertCall(ins,IPOINT_BEFORE,(AFUNPTR)AnalysisReturnFromMain,IARG_CALL_ORDER,CALL_ORDER_LAST,IARG_END);:
+                        INS_InsertCall(ins,IPOINT_BEFORE,(AFUNPTR)AnalysisReturnFromMain,IARG_CALL_ORDER,CALL_ORDER_LAST,IARG_END);
                     }
                 }
             }
