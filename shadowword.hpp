@@ -60,7 +60,7 @@ struct ShadowWord{
         /* -----------------------------------*/
         /* Update state and candidate lockset */
         /* -----------------------------------*/
-        void read_access(uint32_t thread_id , LockSet locksheld){
+        bool read_access(uint32_t thread_id , LockSet locksheld){
             history.push_back(Access(thread_id,locksheld,"read"));
             if(state == Virgin){
                 state = Exclusive;
@@ -77,16 +77,18 @@ struct ShadowWord{
                 if(!lockset.any()){
                     // 警告
                     //fprintf(stderr,"Datarace Found (READ) Address(%PRIu64). ThreadID (%d)\n",addr,thread_id);
-                    cerr << "Datarace Found(READ) ADDRESS(" << addr << " ThreadID = " << thread_id << endl;
+                    cerr << "Datarace Found(READ) ADDRESS=" << std::hex << addr << " ThreadID = " << thread_id << endl;
                     for(size_t i=0;i<history.size();i++){
                         Access ac = history[i];
                         cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
                     }
+                    return false;
                 }
             }
+            return true;
         }
 
-        void write_access(uint32_t thread_id,LockSet locksheld){
+        bool write_access(uint32_t thread_id,LockSet locksheld){
             history.push_back(Access(thread_id,locksheld,"write"));
             if(state == Virgin){
                 state = Exclusive;
@@ -104,13 +106,15 @@ struct ShadowWord{
                 if(!lockset.any()){
                     // 警告
                     //fprintf(stderr,"Datarace Found (WRITE) Address(%PRIu64). ThreadID (%d)\n",addr,thread_id);
-                    cerr << "Datarace Found(WRITE) ADDRESS(" << addr << " ThreadID = " << thread_id << endl;
+                    cerr << "Datarace Found(WRITE) ADDRESS=" << std::hex << addr << " ThreadID = " << thread_id << endl;
                     for(size_t i=0;i<history.size();i++){
                         Access ac = history[i];
                         cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
                     }
+                    return false;
                 }
             }
+            return true;
         }
 
         /**
