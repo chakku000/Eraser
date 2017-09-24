@@ -64,20 +64,15 @@ PIN_LOCK rwlock;
  * @param addr readするアドレス
  * @detail  メモリアドレスaddrがREADされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
  */
-// VOID ReadMemAnalysis(VOID * ip, VOID * addr){
-VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
-    //if(!update_Cv or !implementOn) return;
+VOID ReadMemAnalysis(INS ins, ADDRINT addr){/*{{{*/
+    if(!implementOn) return;    // EraserがONになっていない
     // スレッドID
     THREADID thread_id = PIN_ThreadId();
 
     // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
     //OS_THREAD_ID os_thread_id = PIN_GetTid();
 
-    //PIN_GetLock(&print_lock,thread_id+1);
-    //std::cerr << "READ  " << thread_id << " " << std::hex << addr << std::endl;
-    //PIN_ReleaseLock(&print_lock);
 
-    //PIN_GetLock(&rwlock,thread_id+1);
     // スレッドの保持するロック集合
     PIN_GetLock(&pinlock,thread_id+1);
     LockSet locks = locks_held.getLocks(thread_id);
@@ -88,7 +83,11 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     if(!candidateLockset.count(addr)){
         candidateLockset[addr] = ShadowWord<LockSet>(thread_id,addr);
     }{
-        candidateLockset[addr].read_access(thread_id,locks);
+        bool norace = candidateLockset[addr].read_access(thread_id,locks);
+        if(!norace){
+            //RTN rtn = INS_Rtn(ins);
+            //std::cout << RTN_Name(rtn) << std::endl;
+        }
     }
     PIN_ReleaseLock(&C_lock);
     //PIN_ReleaseLock(&rwlock);
@@ -101,19 +100,14 @@ VOID ReadMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
  * @param addr writeするアドレス
  * @detail  メモリアドレスaddrがWRITEされたらそのアドレスに対応するシャドーワードを更新し,更新の結果によってはエラーを出力する
  */
-VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
-    //if(!update_Cv or !implementOn) return;
-    // スレッドID
-    THREADID thread_id = PIN_ThreadId();
+VOID WriteMemAnalysis(INS ins, ADDRINT addr){/*{{{*/
+    if(!implementOn) return;    // EraserがONになっていない
+
+    THREADID thread_id = PIN_ThreadId(); // スレッドID
 
     // OSが割り当てるのと同じスレッドIDを使用するなら次のようにする
-    //OS_THREAD_ID os_thread_id = PIN_GetTid();
+    // OS_THREAD_ID os_thread_id = PIN_GetTid();
 
-    //PIN_GetLock(&print_lock,thread_id+1);
-    //std::cerr << "WRITE " << thread_id << " " << std::hex << addr << std::endl;
-    //PIN_ReleaseLock(&print_lock);
-
-    //PIN_GetLock(&rwlock,thread_id+1);
     // スレッドの保持するロック集合
     PIN_GetLock(&pinlock,thread_id+1);
     LockSet locks = locks_held.getLocks(thread_id);
@@ -124,10 +118,13 @@ VOID WriteMemAnalysis(VOID * ip, ADDRINT addr){/*{{{*/
     if(!candidateLockset.count(addr)){
         candidateLockset[addr] = ShadowWord<LockSet>(thread_id,addr);
     }{
-        candidateLockset[addr].write_access(thread_id,locks);
+        bool norace = candidateLockset[addr].write_access(thread_id,locks);
+        if(!norace){
+            //RTN rtn = INS_Rtn(ins);
+            //std::cout << RTN_Name(rtn) << std::endl;
+        }
     }
     PIN_ReleaseLock(&C_lock);
-    //PIN_ReleaseLock(&rwlock);
 }/*}}}*/
 
 /*
@@ -154,7 +151,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                     //bool ret = true;
                     INS_InsertPredicatedCall(
                             ins,IPOINT_BEFORE, (AFUNPTR) ReadMemAnalysis,
-                            IARG_INST_PTR,                      // 計装されるinstructionのアドレス
+                            IARG_PTR, ins,                      // 計装されるinstruction
                             IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
                             IARG_END);
                 }
@@ -163,7 +160,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                     //bool ret = true;
                     INS_InsertPredicatedCall(
                             ins,IPOINT_BEFORE, (AFUNPTR) WriteMemAnalysis,
-                            IARG_INST_PTR,                      // 計装されるinstructionのアドレス
+                            IARG_PTR, ins,                      // 計装されるinstruction
                             IARG_MEMORYOP_EA , memOp,           // メモリオペランドの有効アドレス
                             IARG_END);
                 }
