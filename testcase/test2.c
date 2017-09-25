@@ -1,13 +1,5 @@
-/*
- * test2
- * thread,lockを作成する.
- * ロックを用いて制御
- * 競合
- */
 #include <stdio.h>
 #include <pthread.h>
-
-pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 
 int count = 0;
 
@@ -15,9 +7,16 @@ void f(){
     count++;
 }
 
+void g(){
+    count++;
+}
+
 int main(){
-    pthread_t th;
-    pthread_create(&th,NULL,(void*)f,NULL);
-    pthread_join(th,NULL);
+    pthread_t th1,th2;
+    pthread_create(&th1,NULL,(void*)f,NULL);
+    pthread_create(&th2,NULL,(void*)g,NULL);
+    pthread_join(th1,NULL);
+    pthread_join(th2,NULL);
+    count++;
     return 0;
 }
