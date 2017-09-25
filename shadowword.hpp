@@ -27,6 +27,7 @@ struct ShadowWord{
             Exclusive,
             Shared,
             SharedModified,
+            Race,
         };/*}}}*/
 
         /**
@@ -38,6 +39,7 @@ struct ShadowWord{
             else if(state == Exclusive) s="Exclusive";
             else if(state == Shared) s="Shared";
             else if(state == SharedModified) s="SharedModified";
+            else if(state == Race) s="Race";
             else s = "UnknownState";
             os << s;
             return os;
@@ -97,18 +99,17 @@ struct ShadowWord{
          * @return データ競合がある場合はtrueを,それ以外はfalseを返す
          */
         bool read_access(uint32_t thread_id , LockSet locksheld){
+            if(state==Race) return false;   // 既に競合状態ならば何もしない
             State before = state;
             State after = state;
             bool race = false;
             if(state == Virgin){
                 state = Exclusive;
                 th = thread_id;
-                after = state;
             }else if(state == Exclusive){
                 if(th != thread_id){
                     state = Shared;
                     lockset &= locksheld;
-                    after = state;
                 }
             }else if(state == Shared){
                 lockset &= locksheld;
@@ -117,9 +118,10 @@ struct ShadowWord{
                 if(!lockset.any()){
                     // データ競合発生
                     race = true;
+                    state = Race;
                 }
             }
-
+            after=state;
             history.push_back(Access(thread_id,locksheld,"Read",before,after));
 
             // データ競合通知
@@ -135,6 +137,7 @@ struct ShadowWord{
          * @return データ競合がある場合はtrueを,それ以外はfalseを返す
          */
         bool write_access(uint32_t thread_id,LockSet locksheld){
+            if(state==Race) return false;   // 既に競合状態ならば何もしない
             State before = state;
             State after = state;
             bool race = false;
@@ -155,9 +158,11 @@ struct ShadowWord{
                 if(!lockset.any()){
                     // データ競合発生
                     race = true;
+                    state = Race;
                 }
             }
 
+            after=state;
             history.push_back(Access(thread_id,locksheld,"Write",before,after));
 
             if(race){
