@@ -9,4 +9,5 @@ out
 err
 input
 output.txt
-
+pintool.log
+pin.log
