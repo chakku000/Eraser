@@ -19,19 +19,52 @@
 template<class Lockset>
 struct ShadowWord{
     private:
-        enum State{
+        /**
+         * @brief メモリの状態を表す列挙子
+         */
+        enum State{/*{{{*/
             Virgin,
             Exclusive,
             Shared,
             SharedModified,
-        };
-        class Access{
+        };/*}}}*/
+
+        /**
+         * @brief enum Stateの状態を文字列でストリームに流す
+         */
+        friend std::ostream& operator<<(std::ostream& os, const State state){/*{{{*/
+            string s;
+            if(state == Virgin) s="Virgin";
+            else if(state == Exclusive) s="Exclusive";
+            else if(state == Shared) s="Shared";
+            else if(state == SharedModified) s="SharedModified";
+            else s = "UnknownState";
+            os << s;
+            return os;
+        }/*}}}*/
+
+        /**
+         * @brief アクセスを保存するクラス
+         * @details アクセスのスレッド番号,アクセスしたスレッドの保持するロック,アクセスタイプ,アクセス前と後のメモリ状態
+         */
+        class Access{/*{{{*/
             public:
                 uint32_t threadid;
                 Lockset lk;
                 string type;
-                Access(uint32_t th , Lockset lks , string t) : threadid(th) , lk(lks) , type(t){}
-        };
+                State st1,st2;  // st1 : アクセス前の状態 , st2 : アクセス後の状態
+                Access(uint32_t th , Lockset lks , string t,State st1_,State st2_) : threadid(th) , lk(lks) , type(t), st1(st1_) , st2(st2_){}
+        };/*}}}*/
+
+        /**
+         * @brief アクセスをostreamに流して出力可能にする
+         */
+        friend std::ostream& operator<<(std::ostream& os, const Access& ac){/*{{{*/
+            os << ac.threadid << " " << ac.lk << " " << ac.type << " " << ac.st1 << "->" << ac.st2;
+            return os;
+        }/*}}}*/
+
+
         Lockset lockset;
         uint32_t th;
         uint64_t addr;
@@ -42,54 +75,70 @@ struct ShadowWord{
         /* Constructor                                                                  */
         /* 初期状態をExclusiveにすることで事前にアドレスを保持する必要をなくす          */
         /*------------------------------------------------------------------------------*/
-        //ShadowWord(){
-        //    fprintf(stderr,"new shadow word\n");
-        //    state = Exclusive;
-        //    lockset.set();
-        //}
+
         ShadowWord(){}
         ShadowWord(uint32_t thread_id,uint64_t ad){
             th = thread_id;
             addr = ad;
             state = Exclusive;
             lockset.set();
-
-            history.push_back(Access(thread_id,lockset,"init"));
+            // 最初のアクセス
+            Access ac(thread_id,lockset,"Init",Virgin,state);
+            history.push_back(ac);
         }
 
         /* -----------------------------------*/
         /* Update state and candidate lockset */
         /* -----------------------------------*/
+
+
+        /**
+         * @brief 読み込みアクセスに対するshadow wordの更新
+         * @return データ競合がある場合はtrueを,それ以外はfalseを返す
+         */
         bool read_access(uint32_t thread_id , LockSet locksheld){
-            history.push_back(Access(thread_id,locksheld,"read"));
+            State before = state;
+            State after = state;
+            bool race = false;
             if(state == Virgin){
                 state = Exclusive;
                 th = thread_id;
+                after = state;
             }else if(state == Exclusive){
                 if(th != thread_id){
                     state = Shared;
                     lockset &= locksheld;
+                    after = state;
                 }
             }else if(state == Shared){
                 lockset &= locksheld;
             }else if(state == SharedModified){
                 lockset &= locksheld;
                 if(!lockset.any()){
-                    // 警告
-                    //fprintf(stderr,"Datarace Found (READ) Address(%PRIu64). ThreadID (%d)\n",addr,thread_id);
-                    cerr << "Datarace Found(READ) ADDRESS=" << std::hex << addr << " ThreadID = " << thread_id << endl;
-                    for(size_t i=0;i<history.size();i++){
-                        Access ac = history[i];
-                        cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
-                    }
-                    return false;
+                    // データ競合発生
+                    race = true;
                 }
             }
-            return true;
+
+            history.push_back(Access(thread_id,locksheld,"Read",before,after));
+
+            // データ競合通知
+            if(race){
+                std::cerr << "Datarace found(READ).  " << "Address(" << std::hex << addr << ")" << " ThreadID(" << thread_id << ")" << std::endl;
+                for(size_t i=0;i<history.size();i++) std::cerr << history[i] << endl;
+            }
+            return race;
         }
 
+        /**
+         * @brief 書き込みアクセスによるshadow wordの更新
+         * @return データ競合がある場合はtrueを,それ以外はfalseを返す
+         */
         bool write_access(uint32_t thread_id,LockSet locksheld){
-            history.push_back(Access(thread_id,locksheld,"write"));
+            State before = state;
+            State after = state;
+            bool race = false;
+
             if(state == Virgin){
                 state = Exclusive;
                 th = thread_id;
@@ -104,17 +153,17 @@ struct ShadowWord{
             }else if(state == SharedModified){
                 lockset &= locksheld;
                 if(!lockset.any()){
-                    // 警告
-                    //fprintf(stderr,"Datarace Found (WRITE) Address(%PRIu64). ThreadID (%d)\n",addr,thread_id);
-                    cerr << "Datarace Found(WRITE) ADDRESS=" << std::hex << addr << " ThreadID = " << thread_id << endl;
-                    for(size_t i=0;i<history.size();i++){
-                        Access ac = history[i];
-                        cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
-                    }
-                    return false;
+                    // データ競合発生
+                    race = true;
                 }
             }
-            return true;
+
+            history.push_back(Access(thread_id,locksheld,"Write",before,after));
+
+            if(race){
+                std::cerr << "Datarace found(WRITE). " << "Address(" << std::hex << addr << ")" << " ThreadID(" << thread_id << ")" << std::endl;
+            }
+            return race;
         }
 
         /**
@@ -136,7 +185,6 @@ struct ShadowWord{
                 Access ac = history[i];
                 cerr << ac.threadid << " " << ac.lk << " " << ac.type << endl;
             }
-
             std::cout << std::endl;
         }
 };
