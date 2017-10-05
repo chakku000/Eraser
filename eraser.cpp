@@ -37,6 +37,7 @@
 /* ===================================================================== */
 /*      Grobal Variable                                                  */
 /* ===================================================================== */
+/*{{{*/
 LockManager<pthread_mutex_t*,uint32_t> lockmanager;
 LocksHeld<THREADID,LockSet> locks_held;
 
@@ -52,6 +53,7 @@ bool implementOn = false;
 
 PIN_LOCK print_lock;
 PIN_LOCK rwlock;
+/*}}}*/
 
 /* ===================================================================== */
 /*      Analysis Read and Write access                                   */
@@ -194,18 +196,18 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
 
     uint32_t thread_id = PIN_ThreadId();
 
-    //if(implementOn) std::cerr << "pthread_mutex_lock replaced. Thread(" << thread_id << ") lock (" << mu << ")" << std::endl;
-
 
     /* ------------------------------
      *  pthread_mutex_lock(&mu)を実行
      * ------------------------------ */
-    //CALL_APPLICATION_FUNCTION_PARAM  param = CALL_APPLICATION_FUNCTION_PARAM::native;
+    // pthread_thread_lock関数を計装しない
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native=1;
     PIN_CallApplicationFunction(
             context , PIN_ThreadId(),
             CALLINGSTD_DEFAULT,
             orgFuncptr,
-            NULL,                       // デフォルトの挙動
+            &param,                       // デフォルトの挙動
             PIN_PARG(int), &ret,
             PIN_PARG(pthread_mutex_t*), mu,
             PIN_PARG_END());
@@ -244,11 +246,14 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
     /* ------------------------------
      *  pthread_mutex_unlock(&mu)を実行
      * ------------------------------ */
+    // pthread_mutex_unlock関数を計装しない
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native = 1;
     PIN_CallApplicationFunction(
             context , thread_id,
             CALLINGSTD_DEFAULT,
             orgFuncptr,
-            NULL,
+            &param,
             PIN_PARG(int),&ret,
             PIN_PARG(pthread_mutex_t*),mu,
             PIN_PARG_END());
