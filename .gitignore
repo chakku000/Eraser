@@ -11,3 +11,5 @@ input
 output.txt
 pintool.log
 pin.log
+testcase/*
+!testcase/*.c

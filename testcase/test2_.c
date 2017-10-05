@@ -17,5 +17,7 @@ int main(){
     pthread_create(&th2,NULL,(void*)g,NULL);
     pthread_join(th1,NULL);
     pthread_join(th2,NULL);
+    printf("%p\n",&count);
+    printf("%d\n",count);
     return 0;
 }
