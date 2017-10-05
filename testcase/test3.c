@@ -11,7 +11,7 @@ pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 int count = 0;
 
 void f(){
-    count += 10;
+    count += 1;
 }
 
 void g(){
@@ -20,11 +20,11 @@ void g(){
 
 int main(){
     pthread_t th1,th2;
-    printf("%p\n",&count);
+    //printf("%p\n",&count);
     pthread_create(&th1,NULL,(void*)f,NULL);
     pthread_create(&th2,NULL,(void*)g,NULL);
     pthread_join(th1,NULL);
     pthread_join(th2,NULL);
-    printf("%d\n",count);
+    //printf("%d\n",count);
     return 0;
 }
