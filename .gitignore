@@ -11,3 +11,7 @@ input
 output.txt
 pintool.log
 pin.log
+testcase/*
+!testcase/*.c
+!testcase/README.md
+!testcase/compile.sh

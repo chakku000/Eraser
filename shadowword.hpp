@@ -68,8 +68,8 @@ struct ShadowWord{
 
 
         Lockset lockset;
-        uint32_t th;
-        uint64_t addr;
+        uint32_t th;        // 最初にアクセスしたスレッド番号
+        uint64_t addr;      // 監視対象のアドレス
         State state;
         std::vector<Access> history;
     public:
@@ -102,26 +102,40 @@ struct ShadowWord{
             if(state==Race) return false;   // 既に競合状態ならば何もしない
             State before = state;
             State after = state;
-            bool race = false;
-            if(state == Virgin){
-                state = Exclusive;
-                th = thread_id;
-            }else if(state == Exclusive){
-                if(th != thread_id){
-                    state = Shared;
-                    lockset &= locksheld;
-                }
-            }else if(state == Shared){
-                lockset &= locksheld;
-            }else if(state == SharedModified){
-                lockset &= locksheld;
-                if(!lockset.any()){
-                    // データ競合発生
-                    race = true;
-                    state = Race;
-                }
+            bool race = false;              // 競合チェック. 競合がある場合にtrueになる
+
+            // アクセスによる次のStateを決定
+            switch(state){
+                case Virgin:
+                    after = Exclusive;
+                    th = thread_id;
+                    break;
+                case Exclusive:
+                    if(th != thread_id) after = Shared;
+                    break;
+                case Shared:
+                    break;
+                case SharedModified:
+                    break;
+                default:
+                    break;
             }
-            after=state;
+
+            // Stateの更新
+            state = after;
+
+            // C(v)の更新
+            if(state == Shared or state == SharedModified){
+                lockset &= locksheld;
+            }
+
+            // 競合チェック
+            if(state == SharedModified and !lockset.any()){
+                race = true;
+                state = after = Race;
+            }
+
+            // 履歴に追加
             history.push_back(Access(thread_id,locksheld,"Read",before,after));
 
             // データ競合通知
@@ -140,33 +154,46 @@ struct ShadowWord{
             if(state==Race) return false;   // 既に競合状態ならば何もしない
             State before = state;
             State after = state;
-            bool race = false;
+            bool race = false;              // 競合チェック. 競合がある場合にtrueになる
 
-            if(state == Virgin){
-                state = Exclusive;
-                th = thread_id;
-            }else if(state == Exclusive){
-                if(th != thread_id){
-                    state = SharedModified;
-                    lockset &= locksheld;
-                }
-            }else if(state == Shared){
-                state = SharedModified;
-                lockset &= locksheld;
-            }else if(state == SharedModified){
-                lockset &= locksheld;
-                if(!lockset.any()){
-                    // データ競合発生
-                    race = true;
-                    state = Race;
-                }
+            // アクセスによる次のStateを決定
+            switch(state){
+                case Virgin:
+                    after = Exclusive;
+                    th = thread_id;
+                    break;
+                case Exclusive:
+                    if(th != thread_id) after = SharedModified;
+                    break;
+                case Shared:
+                    after = SharedModified;
+                    break;
+                case SharedModified:
+                    break;
+                default:
+                    break;
             }
 
-            after=state;
+            // Stateの更新
+            state = after;
+
+            // C(v)の更新
+            if(state == Shared or state == SharedModified){
+                lockset &= locksheld;
+            }
+
+            // 競合チェック
+            if(state == SharedModified and !lockset.any()){
+                race = true;
+                state = after = Race;
+            }
+
+            // 履歴に追加
             history.push_back(Access(thread_id,locksheld,"Write",before,after));
 
             if(race){
                 std::cerr << "Datarace found(WRITE). " << "Address(" << std::hex << addr << ")" << " ThreadID(" << thread_id << ")" << std::endl;
+                for(size_t i=0;i<history.size();i++) std::cerr << history[i] << std::endl;
             }
             return race;
         }
