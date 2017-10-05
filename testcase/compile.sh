@@ -6,6 +6,7 @@ ext="*.c"
 compile(){
     for fName in `find . -name "$ext"`
     do
+        echo "compile " $fName
         name=`echo $fName | sed -e "s/\.c//" | sed -e "s/\.\///"`
         gcc -pthread -o $name $fName
     done
