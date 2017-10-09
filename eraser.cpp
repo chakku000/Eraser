@@ -186,8 +186,9 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
 /* ===================================================================== */
 /*      Replacement Routine                                              */
 /* ===================================================================== */
-/*{{{*/
-/*
+
+// replace pthread_mutex_lock/*{{{*/
+/**
  * pthread_mutex_lockを置換してpthread_mutex_lockを行ったあとに
  * 実行スレッドの保持するlocks_held()に対象のロックを追加する
  */
@@ -222,8 +223,9 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
     PIN_ReleaseLock(&pinlock);
 
     return ret;
-}
+}/*}}}*/
 
+// replace pthread_mutex_unlock/*{{{*/
 /*
  * pthread_mutex_unlockを置換してpthread_mutex_unlockのコール時に
  * 実行スレッドの保持するlocks_held()から対象のロックを削除する
@@ -258,10 +260,9 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
             PIN_PARG(pthread_mutex_t*),mu,
             PIN_PARG_END());
     return ret;
-}
+}/*}}}*/
 
-/*}}}*/
-
+// replace pthread_create/*{{{*/
 /**
  * @fn
  * pthread_createをこの関数で置換する
@@ -283,8 +284,9 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
             PIN_PARG(void*), args,
             PIN_PARG_END());
     return ret;
-}
+}/*}}}*/
 
+// replace pthread_join/*{{{*/
 /**
  * @fn
  * pthread_joinをこの関数で置換する
@@ -304,12 +306,29 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
             PIN_PARG(void**), thread_return,
             PIN_PARG_END());
     return ret;
-}
+}/*}}}*/
 
-VOID AnalysisMainEntrance(){
+// replace pthread_exit/*{{{*/
+void Jit_PthreadExit(CONTEXT * context, AFUNPTR orgFuncptr,void** retval){
+    // pthread_exitを計装しない
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context,PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(void*),retval,
+            PIN_PARG_END());
+}/*}}}*/
+
+/* ===================================================================== */
+/*      Analysis Main                                                    */
+/* ===================================================================== */
+VOID AnalysisMainEntrance(){/*{{{*/
     std::cerr << "start main" << std::endl;
     implementOn = true;
-}
+}/*}}}*/
 
 /* ===================================================================== */
 /* プログラム実行前にimageを検査して,ロックの解放,獲得の関数を置き換える */
@@ -317,7 +336,7 @@ VOID AnalysisMainEntrance(){
 
 /*{{{*/
 /*
- *  pthread_mutex_lock() 関数を置き換える
+ *  関数を置き換える
  */
 VOID ImageLoad(IMG img,VOID *v){
     // find main
@@ -429,6 +448,26 @@ VOID ImageLoad(IMG img,VOID *v){
                     IARG_ORIG_FUNCPTR,
                     IARG_FUNCARG_ENTRYPOINT_VALUE,0,    // pthread_t
                     IARG_FUNCARG_ENTRYPOINT_VALUE,1,    // void**
+                    IARG_END);
+        }
+    }
+
+    // replace pthread_exit
+    {
+        PROTO proto_pthread_exit = PROTO_Allocate(
+                                        PIN_PARG(void), // pthread_exitの戻り値
+                                        CALLINGSTD_DEFAULT,
+                                        "pthread_exit",
+                                        PIN_PARG(void*),
+                                        PIN_PARG_END());
+        RTN rtn = RTN_FindByName(img,"pthread_exit");
+        if(RTN_Valid(rtn)){
+            RTN_ReplaceSignature(
+                    rtn,AFUNPTR(Jit_PthreadExit),
+                    IARG_PROTOTYPE,proto_pthread_exit,
+                    IARG_CONTEXT,
+                    IARG_ORIG_FUNCPTR,
+                    IARG_FUNCARG_ENTRYPOINT_VALUE,0,
                     IARG_END);
         }
     }
