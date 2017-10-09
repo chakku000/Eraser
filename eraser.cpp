@@ -211,6 +211,22 @@ int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , 
     return ret;
 }/*}}}*/
 
+// pthread_detach/*{{{*/
+int Jit_PthreadDetach(CONTEXT * context, AFUNPTR orgFuncptr , pthread_t thread){
+    int ret;
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native = 1;
+    PIN_CallApplicationFunction(
+            context,PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(int),&ret,
+            PIN_PARG(pthread_t),thread,
+            PIN_PARG_END());
+    return ret;
+}/*}}}*/
+
 // replace pthread_exit/*{{{*/
 void Jit_PthreadExit(CONTEXT * context, AFUNPTR orgFuncptr,void** retval){
     // pthread_exitを計装しない
@@ -247,7 +263,7 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
     return ret;
 }/*}}}*/
 
-// pthread_mutex_init
+// pthread_mutex_init/*{{{*/
 /*
  * pthread_mutex_initを計装対象外にする
  */
@@ -265,7 +281,7 @@ int Jit_PthreadMutexInit(CONTEXT * context , AFUNPTR orgFuncptr , pthread_mutex_
             PIN_PARG(pthread_mutexattr_t*),mutexattr,
             PIN_PARG_END());
     return ret;
-}
+}/*}}}*/
 
 // replace pthread_mutex_lock/*{{{*/
 /**
@@ -342,6 +358,20 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
     return ret;
 }/*}}}*/
 
+// pthread_self/*{{{*/
+pthread_t Jit_PthreadSelf(CONTEXT * context,AFUNPTR orgFuncptr){
+    pthread_t ret;
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context,PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(pthread_t),&ret,
+            PIN_PARG_END());
+    return ret;
+}/*}}}*/
 
 
 /* ===================================================================== */
