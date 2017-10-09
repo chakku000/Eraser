@@ -247,6 +247,26 @@ int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** 
     return ret;
 }/*}}}*/
 
+// pthread_mutex_init
+/*
+ * pthread_mutex_initを計装対象外にする
+ */
+int Jit_PthreadMutexInit(CONTEXT * context , AFUNPTR orgFuncptr , pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr){
+    int ret = 0;
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context, PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(int) , &ret,
+            PIN_PARG(pthread_mutex_t*), mutex,
+            PIN_PARG(pthread_mutexattr_t*),mutexattr,
+            PIN_PARG_END());
+    return ret;
+}
+
 // replace pthread_mutex_lock/*{{{*/
 /**
  * pthread_mutex_lockを置換してpthread_mutex_lockを行ったあとに
