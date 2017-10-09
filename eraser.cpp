@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <map>
 #include <bitset>
+#include <cerrno>
 #include "pin.H"
 
 
@@ -320,6 +321,33 @@ int Jit_PthreadMutexLock(CONTEXT * context , AFUNPTR orgFuncptr,pthread_mutex_t*
 
     return ret;
 }/*}}}*/
+
+// pthread_mutex_trylock
+int Jit_PthreadMutexTrylock(CONTEXT * context, AFUNPTR orgFuncptr,pthread_mutex_t* mu){
+    int ret = 0;
+    uint32_t thread_id = PIN_ThreadId();
+
+    // pthread_mutex_trylockを実行
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context , PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(int),&ret,
+            PIN_PARG(pthread_mutex_t*),mu,
+            PIN_PARG_END());
+
+    if(ret==0){
+        // locks_held(t)の更新
+        PIN_GetLock(&pinlock,thread_id+1);
+        uint32_t lkid = lockmanager.getLockNumber(mu);  // ロックIDの取得
+        locks_held.addLock(thread_id,lkid);
+        PIN_ReleaseLock(&pinlock);
+    }
+    return ret;
+}
 
 // replace pthread_mutex_unlock/*{{{*/
 /*
