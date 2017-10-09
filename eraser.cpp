@@ -187,6 +187,66 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
 /*      Replacement Routine                                              */
 /* ===================================================================== */
 
+// replace pthread_create/*{{{*/
+/**
+ * @fn
+ * pthread_createをこの関数で置換する
+ */
+int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , pthread_attr_t * attr, void* fun_ptr , void* args){
+    int ret = 0;
+    // pthread_create関数を計装しない
+    CALL_APPLICATION_FUNCTION_PARAM  param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context,PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(int), &ret,
+            PIN_PARG(pthread_t*), th,
+            PIN_PARG(pthread_attr_t*), attr,
+            PIN_PARG(void*), fun_ptr,
+            PIN_PARG(void*), args,
+            PIN_PARG_END());
+    return ret;
+}/*}}}*/
+
+// replace pthread_exit/*{{{*/
+void Jit_PthreadExit(CONTEXT * context, AFUNPTR orgFuncptr,void** retval){
+    // pthread_exitを計装しない
+    CALL_APPLICATION_FUNCTION_PARAM param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context,PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(void*),retval,
+            PIN_PARG_END());
+}/*}}}*/
+
+// replace pthread_join/*{{{*/
+/**
+ * @fn
+ * pthread_joinをこの関数で置換する
+ */
+int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** thread_return){
+    int ret = 0;
+    // pthread_join関数を計装しないようにする
+    CALL_APPLICATION_FUNCTION_PARAM  param;
+    param.native=1;
+    PIN_CallApplicationFunction(
+            context,PIN_ThreadId(),
+            CALLINGSTD_DEFAULT,
+            orgFuncptr,
+            &param,
+            PIN_PARG(int),&ret,
+            PIN_PARG(pthread_t), th,
+            PIN_PARG(void**), thread_return,
+            PIN_PARG_END());
+    return ret;
+}/*}}}*/
+
 // replace pthread_mutex_lock/*{{{*/
 /**
  * pthread_mutex_lockを置換してpthread_mutex_lockを行ったあとに
@@ -262,65 +322,7 @@ int Jit_PthreadMutexUnlock(CONTEXT *context , AFUNPTR orgFuncptr , pthread_mutex
     return ret;
 }/*}}}*/
 
-// replace pthread_create/*{{{*/
-/**
- * @fn
- * pthread_createをこの関数で置換する
- */
-int Jit_PthreadCreate(CONTEXT * context , AFUNPTR orgFuncptr , pthread_t * th , pthread_attr_t * attr, void* fun_ptr , void* args){
-    int ret = 0;
-    // pthread_create関数を計装しない
-    CALL_APPLICATION_FUNCTION_PARAM  param;
-    param.native=1;
-    PIN_CallApplicationFunction(
-            context,PIN_ThreadId(),
-            CALLINGSTD_DEFAULT,
-            orgFuncptr,
-            &param,
-            PIN_PARG(int), &ret,
-            PIN_PARG(pthread_t*), th,
-            PIN_PARG(pthread_attr_t*), attr,
-            PIN_PARG(void*), fun_ptr,
-            PIN_PARG(void*), args,
-            PIN_PARG_END());
-    return ret;
-}/*}}}*/
 
-// replace pthread_join/*{{{*/
-/**
- * @fn
- * pthread_joinをこの関数で置換する
- */
-int Jit_PthreadJoin(CONTEXT * context, AFUNPTR orgFuncptr, pthread_t th, void** thread_return){
-    int ret = 0;
-    // pthread_join関数を計装しないようにする
-    CALL_APPLICATION_FUNCTION_PARAM  param;
-    param.native=1;
-    PIN_CallApplicationFunction(
-            context,PIN_ThreadId(),
-            CALLINGSTD_DEFAULT,
-            orgFuncptr,
-            &param,
-            PIN_PARG(int),&ret,
-            PIN_PARG(pthread_t), th,
-            PIN_PARG(void**), thread_return,
-            PIN_PARG_END());
-    return ret;
-}/*}}}*/
-
-// replace pthread_exit/*{{{*/
-void Jit_PthreadExit(CONTEXT * context, AFUNPTR orgFuncptr,void** retval){
-    // pthread_exitを計装しない
-    CALL_APPLICATION_FUNCTION_PARAM param;
-    param.native=1;
-    PIN_CallApplicationFunction(
-            context,PIN_ThreadId(),
-            CALLINGSTD_DEFAULT,
-            orgFuncptr,
-            &param,
-            PIN_PARG(void*),retval,
-            PIN_PARG_END());
-}/*}}}*/
 
 /* ===================================================================== */
 /*      Analysis Main                                                    */
