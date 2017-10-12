@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <pthread.h>
 #include <map>
+#include <set>
 #include <bitset>
 #include <cerrno>
 #include "pin.H"
@@ -33,6 +34,8 @@
 #include "locksheld.hpp"
 #endif
 
+#include "ignore.hpp"
+
 //#define ERASER_DEBUG
 
 /* ===================================================================== */
@@ -55,6 +58,12 @@ bool implementOn = false;
 PIN_LOCK print_lock;
 PIN_LOCK rwlock;
 /*}}}*/
+
+
+/* ===================================================================== */
+/*      variables for test                                               */
+/* ===================================================================== */
+std::set<std::string> libs;
 
 /* ===================================================================== */
 /*      Analysis Read and Write access                                   */
@@ -147,6 +156,14 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
     for(BBL bbl = TRACE_BblHead(trace);BBL_Valid(bbl); bbl = BBL_Next(bbl)){
         for(INS ins = BBL_InsHead(bbl);INS_Valid(ins);ins=INS_Next(ins)){
 
+            // IMGを特定して特定のIMGは計装を中止する
+            //IMG img = IMG_FindByAddress(INS_Address(ins)); 
+            //std::string image_name;
+            //if(IMG_Valid(img))  image_name = IMG_Name(img);
+
+            if(IGNORE::isInsIgnore(ins)) continue;
+
+
             UINT32 memOperands = INS_MemoryOperandCount(ins);
             for(UINT32 memOp=0;memOp<memOperands;memOp++){
                 if(INS_MemoryOperandIsRead(ins,memOp)){         // Read Access
@@ -168,6 +185,7 @@ VOID Trace(TRACE trace, VOID *v){/*{{{*/
                             IARG_END);
                 }
             }
+
 
             // 命令がmain関数のreturnのとき,計装を終了する
             if(INS_IsRet(ins)){

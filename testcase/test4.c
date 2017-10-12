@@ -19,8 +19,8 @@ void f(){
 
 int main(){
     pthread_t th1,th2;
-    printf("&count = %p\n",&count);
-    printf("&mu = %p\n",&mu);
+    //printf("&count = %p\n",&count);
+    //printf("&mu = %p\n",&mu);
     pthread_create(&th1,NULL,(void*)f,NULL);
     pthread_create(&th2,NULL,(void*)f,NULL);
     pthread_join(th1,NULL);
