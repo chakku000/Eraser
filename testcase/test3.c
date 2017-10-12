@@ -11,7 +11,7 @@ pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 int count = 0;
 
 void f(){
-    //printf("%p\n",&count);
+    printf("%p\n",&count);
     count += 1;
 }
 

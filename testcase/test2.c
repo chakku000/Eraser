@@ -4,6 +4,7 @@
 int count = 0;
 
 void f(){
+    printf("address : %p\n",&count);
     count++;
 }
 
